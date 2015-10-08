@@ -1,0 +1,165 @@
+{
+    file: "flubtheme",
+    name: "basic",
+    version: 1,
+    colors: {
+        textactive: {
+            id: 1,
+            color: "#0AF"
+        },
+        textdisabled: {
+            id: 2,
+            color: "#444"
+        }
+    },
+    fonts: {
+        default: {
+            id: 3,
+            file: "resources/font/consolas.12.stbfont",
+            font: "consolas",
+            size: 12
+        },
+        caption: {
+            id: 4,
+            file: "resources/font/consolas.12.stbfont",
+            font: "consolas",
+            size: 12
+        },
+        caption-active: {
+            id: 5,
+            file: "resources/font/consolas.12.bold.stbfont",
+            font: "consolas-bold",
+            size: 12
+        },
+        code: {
+            id: 6,
+            file: "resources/font/courier.12.stbfont",
+            font: "courier",
+            size: 12
+        }
+    },
+    textures: {
+        basic: {
+            id: 7,
+            filename: "resources/images/flub-simple-gui.gif",
+            minfilter: "GL_NEAREST",
+            magfilter: "GL_NEAREST",
+            colorkey: "magenta"
+        }
+    },
+    fragments: {
+        dialog_bg: {
+            type: "tile",
+            id: 8,
+            texid: 7,
+            width: 32,
+            height: 32,
+            x1: 15,
+            y1: 15
+        },
+        super_icon: {
+            type: "bitmap",
+            id: 9,
+            texid: 7,
+            width: 32,
+            height: 32,
+            x1: 55,
+            y1: 66
+        },
+        dialog: {
+            type: "slice",
+            id: 10,
+            texid: 7,
+            x1: 15,
+            y1: 15,
+            x2: 30,
+            y2: 30,
+            x3: 45,
+            y3: 45,
+            x4: 60,
+            y4: 60
+        },
+        light_raised: {
+            type: "slice",
+            id: 11,
+            texid: 7,
+            x1: 64,
+            y1: 80,
+            x2: 66,
+            y2: 82,
+            x3: 77,
+            y3: 93,
+            x4: 79,
+            y4: 95
+        },
+        caption_nofocus: {
+            type: "slice",
+            id: 12,
+            texid: 7,
+            x1: 0,
+            y1: 80,
+            x2: 2,
+            y2: 82,
+            x3: 13,
+            y3: 93,
+            x4: 15,
+            y4: 95
+        },
+        caption-active: {
+            type: "slice",
+            id: 13,
+            texid: 7,
+            x1: 16,
+            y1: 80,
+            x2: 18,
+            y2: 82,
+            x3: 29,
+            y3: 93,
+            x4: 31,
+            y4: 95
+        },
+        dialog_abg: {
+            type: "animation",
+            id: 14,
+            texid: 7,
+            width: 16,
+            height: 16,
+            frames: [
+                { x: 0, y: 8, delay: 110  },
+                { x: 16, y: 24, delay: 120 },
+                { x: 32, y: 40, delay: 130 },
+                { x: 48, y: 56, delay: 140 }
+            ]
+        },
+        dialog_anim: {
+            type: "animslice",
+            id: 15,
+            texid: 7,
+            frames: [
+                { x1: 15, y1: 15, x2: 30, y2: 30, x3: 45, y3: 45, x4: 60, y4: 60, delay: 50 },
+                { x1: 15, y1: 15, x2: 30, y2: 30, x3: 45, y3: 45, x4: 60, y4: 60, delay: 50 },
+                { x1: 15, y1: 15, x2: 30, y2: 30, x3: 45, y3: 45, x4: 60, y4: 60, delay: 50 }
+            ]
+        }
+    },
+    components: {
+        dialog: {
+            id: 16,
+            maxwidth: 32767,
+            minwidth:  0,
+            maxheight: 32767,
+            minheight: 0,
+            padleft: 0,
+            padright: 0,
+            padtop: 0,
+            padbottom: 0,
+            marginleft: 0,
+            marginright: 0,
+            margintop: 0,
+            marginbottom: 0,
+            states: [
+                { mode: "disable|enable|focus|pressed|hover", fragid: 10 }
+            ]
+        }
+    }
+}
