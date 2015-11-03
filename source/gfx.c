@@ -34,12 +34,14 @@ struct gfxCtx_s {
 	flubSlice_t *keycapSlice;
 	gfxEffect_t *activeEffects;
     gfxMeshObj_t *meshList;
+    GLuint simpleProgram;
 } gfxCtx = {
         .init = 0,
 		.flubMisc = NULL,
 		.keycapSlice = NULL,
 		.activeEffects = NULL,
         .meshList = NULL,
+        .simpleProgram = 0,
 	};
 
 
@@ -189,8 +191,11 @@ void _gfxShutdown(void) {
 int gfxStart(void) {
 	gfxCtx.flubMisc = texmgrGet("flub-keycap-misc");
 	gfxCtx.keycapSlice = gfxSliceCreate(gfxCtx.flubMisc, 41, 0, 46, 5, 52, 11, 57, 16);
+    gfxCtx.simpleProgram = videoGetProgram("simple");
+    infof("Program id is %d", gfxCtx.simpleProgram);
 
-	return 1;
+
+    return 1;
 }
 
 #define KEYCAP_HORZ_SPACER 5
@@ -457,6 +462,7 @@ gfxMeshObj_t *gfxMeshCreate(int triCount, int flags, const texture_t *texture) {
 	mesh->green = 1.0;
 	mesh->blue = 1.0;
 	mesh->alpha = 1.0;
+    mesh->program = gfxCtx.simpleProgram;
 
 	if(flags & GFX_MESH_FLAG_COLOR) {
 		glGenBuffers(3, mesh->vboId);
@@ -617,6 +623,8 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
 		mesh->initCB(mesh->context);
 	}	
 
+    glUseProgram(mesh->program);
+
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -664,6 +672,8 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
 	glDisableClientState(GL_VERTEX_ARRAY);
+
+    glUseProgram(0);
 }
 
 

@@ -24,6 +24,8 @@ typedef struct fontCtx_S {
     float red, green, blue, alpha;
     fontIndex_t *index;
     int x, y;
+    GLuint stbfontShader;
+    GLuint stbfontProgram;
 } fontCtx_t;
 
 fontCtx_t fontCtx = {
@@ -35,6 +37,8 @@ fontCtx_t fontCtx = {
     .index = NULL,
     .x = 0,
     .y = 0,
+    .stbfontShader = 0,
+    .stbfontProgram = 0,
 };
 
 #define FONT_DESC_FMT   "%s size %d%s%s"
@@ -114,6 +118,25 @@ int flubFontInit(void) {
 
 int flubFontValid(void) {
     return fontCtx.inited;
+}
+
+int flubFontStart(void) {
+    GLuint vertexShader;
+
+    if(((fontCtx.stbfontShader = videoGetShader(GL_FRAGMENT_SHADER, "resources/shaders/stbfont.frag")) == 0) ||
+       ((vertexShader = videoGetShader(GL_VERTEX_SHADER, "resources/shaders/simple.vert")) == 0) ||
+       ((fontCtx.stbfontProgram = videoCreateProgram("stbfont")) == 0)) {
+        return 0;
+    }
+
+    glAttachShader(fontCtx.stbfontProgram, vertexShader);
+    glAttachShader(fontCtx.stbfontProgram, fontCtx.stbfontShader);
+    glLinkProgram(fontCtx.stbfontProgram);
+    if(!videoValidateOpenGLProgram(fontCtx.stbfontProgram)) {
+        return 0;
+    }
+
+    return 1;
 }
 
 void flubFontShutdown(void) {
@@ -1158,6 +1181,8 @@ void fontBlitCMesh(gfxMeshObj_t *mesh, font_t *font, char c) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
 
+    mesh->program = fontCtx.stbfontProgram;
+
     if((font == NULL) || (mesh == NULL)) { 
         return;
     }
@@ -1174,7 +1199,9 @@ void fontBlitStrMesh(gfxMeshObj_t *mesh, font_t *font, const char *s) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
 
-    if((font == NULL) || (mesh == NULL)) { 
+    mesh->program = fontCtx.stbfontProgram;
+
+    if((font == NULL) || (mesh == NULL)) {
         return;
     }
 
@@ -1193,7 +1220,9 @@ void fontBlitStrNMesh(gfxMeshObj_t *mesh, font_t *font, char *s, int len) {
     stb_fontchar *glyph;
     int count;
 
-    if((font == NULL) || (mesh == NULL)) { 
+    mesh->program = fontCtx.stbfontProgram;
+
+    if((font == NULL) || (mesh == NULL)) {
         return;
     }
     
@@ -1216,7 +1245,9 @@ void fontBlitStrfMesh(gfxMeshObj_t *mesh, font_t *font, char *fmt, ...) {
     char buf[1024];
     va_list ap;
 
-    if((font == NULL) || (mesh == NULL)) { 
+    mesh->program = fontCtx.stbfontProgram;
+
+    if((font == NULL) || (mesh == NULL)) {
         return;
     }
     
@@ -1235,7 +1266,9 @@ void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s) {
     int run, k;
     char *ptr;
 
-    if((font == NULL) || (mesh == NULL)) { 
+    mesh->program = fontCtx.stbfontProgram;
+
+    if((font == NULL) || (mesh == NULL)) {
         return;
     }
     
@@ -1298,7 +1331,9 @@ void fontBlitIntMesh(gfxMeshObj_t *mesh, font_t *font, int num) {
     char c;
     int test, digits;
 
-    if((font == NULL) || (mesh == NULL)) { 
+    mesh->program = fontCtx.stbfontProgram;
+
+    if((font == NULL) || (mesh == NULL)) {
         return;
     }
     
@@ -1329,7 +1364,9 @@ void fontBlitIntMesh(gfxMeshObj_t *mesh, font_t *font, int num) {
 void fontBlitFloatMesh(gfxMeshObj_t *mesh, font_t *font, float num, int decimals) {
     char buf[32];
 
-    if((font == NULL) || (mesh == NULL)) { 
+    mesh->program = fontCtx.stbfontProgram;
+
+    if((font == NULL) || (mesh == NULL)) {
         return;
     }
     

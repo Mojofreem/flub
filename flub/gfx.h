@@ -1,6 +1,12 @@
 #ifndef _FLUB_GFX_HEADER_
 #define _FLUB_GFX_HEADER_
 
+/*
+ * Shaders:
+ *     o fullbright - render the buffer as is
+ *     o global - render the buffer using a single color/alpha for all vertices
+ *     o color - render the buffer using per vertex colo/alpha
+ */
 
 #include <GL/gl.h>
 #include <flub/texture.h>
@@ -57,6 +63,16 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
 							int y3, int x4, int y4);
 void gfxSliceDestroy(flubSlice_t *slice);
 
+flubSlice_t *gfx3x3SliceCreate(const texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3,
+                               int y3, int x4, int y4);
+flubSlice_t *gfx1x3SliceCreate(const texture_t *texture,
+                               int x1, int y1, int x2, int y2, int y3, int y4);
+flubSlice_t *gfx3x1SliceCreate(const texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3, int x4);
+void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height);
+
+
 // Keycap support
 
 void gfxKeyMetrics(font_t *font, const char *caption, int *width, int *height, int *textYOffset);
@@ -106,6 +122,8 @@ typedef struct VBOColor_s {
 typedef struct gfxMeshObj_s {
 	gfxMeshInitCB_t initCB;
 	void *context;
+
+    GLuint program;
 
 	int flags;
 	int length;

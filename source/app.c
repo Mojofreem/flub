@@ -122,6 +122,7 @@ eCmdLineStatus_t appStart(void *cmdlineContext) {
 
 	// Video bringup
     if((!videoStart()) ||
+       (!flubFontStart()) ||
        (!gfxStart()) ||
        (!consoleStart())) {
         return eCMDLINE_EXIT_FAILURE;

@@ -16,6 +16,7 @@ typedef struct fontColor_s {
 
 int flubFontInit(void);
 int flubFontValid(void);
+int flubFontStart(void);
 void flubFontShutdown(void);
 
 int flubFontLoad(const char *filename);

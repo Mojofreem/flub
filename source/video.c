@@ -18,12 +18,14 @@
 #include <flub/util/color.h>
 #include <flub/input.h>
 #include <flub/app.h>
+#include <physfs.h>
 #include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <flub/3rdparty/stb/stb_image_write.h>
+#include <flub/data/critbit.h>
 
 
 // Direct linking GLEW:
@@ -36,6 +38,12 @@ static int _videoHeight = 0;
 
 const int *const videoWidth = &_videoWidth;
 const int *const videoHeight = &_videoHeight;
+
+typedef struct videoShaderEntry_s {
+    GLuint shaderId;
+    GLenum shaderType;
+    char *filename;
+} videoShaderEntry_t;
 
 typedef struct videoMode_s {
     int width;
@@ -67,6 +75,9 @@ typedef struct videoCtx_s {
     SDL_Window *window;
 
     videoMode_t *modes;
+
+    critbit_t shaders;
+    critbit_t programs;
 } videoCtx_t;
 
 
@@ -89,6 +100,9 @@ videoCtx_t _videoCtx = {
     .window = NULL,
 
     .modes = NULL,
+
+    .shaders = CRITBIT_TREE_INIT,
+    .programs = CRITBIT_TREE_INIT
 };
 
 
@@ -180,6 +194,8 @@ int videoInit(void) {
         return 0;
     }
 
+    logDebugRegister("video", DBG_VIDEO, "shaders", DBG_VID_DTL_SHADERS);
+
     if(!flubCfgValid()) {
         fatal("Cannot initialize the video module: config was not initialized");
         return 0;
@@ -245,6 +261,21 @@ int videoStart(void) {
     if(!videoModeSetByStr(flubCfgOptStringGet("videomode"), flubCfgOptBoolGet("fullscreen"))) {
         return 0;
     }
+
+    GLuint vs, fs, oglp;
+    if(((vs = videoGetShader(GL_VERTEX_SHADER, "resources/shaders/simple.vert")) == 0) ||
+       ((fs = videoGetShader(GL_FRAGMENT_SHADER, "resources/shaders/simple.frag")) == 0) ||
+       ((oglp = videoCreateProgram("simple")) == 0)) {
+        return 0;
+    }
+    glAttachShader(oglp, vs);
+    glAttachShader(oglp, fs);
+    glLinkProgram(oglp);
+    glUseProgram(oglp);
+    if(!videoValidateOpenGLProgram(oglp)) {
+        return 0;
+    }
+    glUseProgram(0);
 
     return 1;
 }
@@ -441,6 +472,12 @@ int videoModeSet(int width, int height, int fullscreen) {
         GLenum glewError = glewInit();
         if(glewError != GLEW_OK) {
             errorf("Error initializing GLEW: %s", glewGetErrorString(glewError));
+            fail = 1;
+        }
+
+        if(!(GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader)) {
+            errorf("This computer does not support OpenGL vertex and fragment shaders.");
+            fail = 1;
         }
     }
 
@@ -665,3 +702,179 @@ static void _videoScreenshotHandler(SDL_Event *event, int pressed, int motion, i
     videoScreenshot("screenshot");
 }
 
+int videoValidateOpenGLProgram(GLuint object) {
+    int status;
+
+    glGetProgramiv(object, GL_LINK_STATUS, &status);
+    if(status != GL_TRUE) {
+        errorf("OpenGL program is not valid");
+        videoPrintGLInfoLog(0, object);
+        return 0;
+    }
+    return 1;
+}
+
+static void _videoDumpShaderSource(const char *src) {
+#ifdef FLUB_DEBUG
+    char buf[256];
+    int len;
+    int line = 1;
+    const char *ptr, *next;
+
+    infof("Length: %d", strlen(src));
+    for(ptr = src; *ptr != '\0'; line++) {
+        if((next = strchr(ptr, '\n')) != NULL) {
+            len = next - ptr;
+            if(len > 1) {
+                if(len > (sizeof(buf) - 1)) {
+                    len = sizeof(buf) - 1;
+                }
+                strncpy(buf, ptr, len);
+                buf[len] = '\0';
+                buf[sizeof(buf) - 1] = '\0';
+                debugf(DBG_VIDEO, DBG_VID_DTL_SHADERS, "[%3d] %s", line, buf);
+            }
+            ptr = next;
+            if(*ptr == '\n') {
+                ptr++;
+            }
+        } else {
+            debugf(DBG_VIDEO, DBG_VID_DTL_SHADERS, "[%3d] %s", line, ptr);
+            break;
+        }
+    }
+#endif // FLUB_DEBUG
+}
+
+void videoPrintGLInfoLog(int shader, GLuint object) {
+    int len;
+    int written;
+    char *infoLog;
+    char *ptr, *next, *last;
+
+    if(shader) {
+        glGetShaderiv(object, GL_INFO_LOG_LENGTH, &len);
+    } else {
+        glGetProgramiv(object, GL_INFO_LOG_LENGTH, &len);
+    }
+
+    if(len > 0) {
+        infoLog = util_calloc(len, 0, NULL);
+        if(shader) {
+            glGetShaderInfoLog(object, len, &written, infoLog);
+        } else {
+            glGetProgramInfoLog(object, len, &written, infoLog);
+        }
+        last = infoLog + len;
+        ptr = infoLog;
+        while(1) {
+            if((next = strchr(infoLog, '\n')) != NULL) {
+                *next = '\0';
+            }
+            error(ptr);
+            if(next != NULL) {
+                ptr = next + 1;
+                if(*ptr == '\0') {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        util_free(infoLog);
+    }
+}
+
+GLuint videoGetShader(GLenum shaderType, const char *filename) {
+    videoShaderEntry_t *entry;
+    PHYSFS_file *handle;
+    int len;
+    GLchar *buffer;
+    int status;
+
+    // Check if the shader has already been loaded
+    if(critbitContains(&(_videoCtx.shaders), filename, (void **)(&entry))) {
+        return entry->shaderId;
+    }
+
+    if((handle = PHYSFS_openRead(filename)) == NULL) {
+        errorf("Unable to open the shader file \"%s\": %s", filename, PHYSFS_getLastError());
+        return 0;
+    }
+
+    if((len = PHYSFS_fileLength(handle)) == 0) {
+        errorf("The shader file \"%s\" is empty", filename);
+        PHYSFS_close(handle);
+        return 0;
+    }
+
+    debugf(DBG_VIDEO, DBG_VID_DTL_SHADERS, "Attempting to load shader \"%s\", size %d", filename, len);
+
+    buffer = util_alloc(len + 1, NULL);
+
+    if((PHYSFS_read(handle, buffer, len, 1) != 1)) {
+        errorf("Failed to read the shader file \"%s\": %s", PHYSFS_getLastError());
+        PHYSFS_close(handle);
+        util_free(buffer);
+        return 0;
+    }
+    buffer[len] = '\0';
+
+    entry = util_calloc(sizeof(videoShaderEntry_t), 0, NULL);
+    entry->shaderType = shaderType;
+
+    entry->shaderId = glCreateShader(shaderType);
+
+    glShaderSource(entry->shaderId, 1, (const GLchar **)&buffer, NULL);
+
+    glCompileShader(entry->shaderId);
+
+    glGetShaderiv(entry->shaderId, GL_COMPILE_STATUS, &status);
+    if(status != GL_TRUE) {
+        errorf("Failed building the shader \"%s\"", filename);
+        videoPrintGLInfoLog(1, entry->shaderId);
+        _videoDumpShaderSource(buffer);
+        util_free(buffer);
+        glDeleteShader(entry->shaderId);
+        util_free(entry);
+        return 0;
+    }
+
+    debugf(DBG_VIDEO, DBG_VID_DTL_SHADERS, "Loaded shader \%s\"", filename);
+
+    util_free(buffer);
+    entry->filename = strdup(filename);
+    critbitInsert(&(_videoCtx.shaders), entry->filename, entry, NULL);
+    return entry->shaderId;
+}
+
+GLuint videoCreateProgram(const char *name) {
+    GLuint *entry;
+    int len;
+    char *buffer;
+    const char *cbuffer;
+    int status;
+
+    // Check if the shader has already been loaded
+    if(critbitContains(&(_videoCtx.programs), name, (void **)(&entry))) {
+        return *entry;
+    }
+
+    entry = util_alloc(sizeof(GLuint), NULL);
+
+    *entry = glCreateProgram();
+
+    critbitInsert(&(_videoCtx.programs), name, entry, NULL);
+    return *entry;
+}
+
+GLuint videoGetProgram(const char *name) {
+    GLuint *entry;
+
+    // Check if the shader has already been loaded
+    if(critbitContains(&(_videoCtx.programs), name, (void **)(&entry))) {
+        return *entry;
+    }
+
+    return 0;
+}

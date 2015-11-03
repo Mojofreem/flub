@@ -8,6 +8,8 @@
 #include <gl/glu.h>
 
 
+#define DBG_VID_DTL_SHADERS     1
+
 extern const int *const videoWidth;
 extern const int *const videoHeight;
 
@@ -62,6 +64,14 @@ int videoRemoveNotifiee(videoNotifieeCB_t callback);
 void videoRemoveAllNotifiees(void);
 
 void videoScreenshot(const char *fname);
+
+int videoValidateOpenGLProgram(GLuint object);
+void videoPrintGLInfoLog(int shader, GLuint object);
+
+// GL_VERTEX_SHADER || GL_FRAGMENT_SHADER
+GLuint videoGetShader(GLenum shaderType, const char *filename);
+GLuint videoCreateProgram(const char *name);
+GLuint videoGetProgram(const char *name);
 
 
 #endif // _FLUB_VIDEO_HEADER_
