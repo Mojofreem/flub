@@ -43,16 +43,16 @@ int texmgrRegister(const char *name, const char *filename,
                    GLint minfilter, GLint magfilter, int colorkey,
                    int red, int green, int blue);
 
-const texture_t *texmgrLoad(const char *filename, const char *name,
+texture_t *texmgrLoad(const char *filename, const char *name,
                             GLint minfilter, GLint magfilter, int colorkey,
                             int red, int green, int blue);
 
-const texture_t *texmgrCreate(const char *name, GLint minfilter,
+texture_t *texmgrCreate(const char *name, GLint minfilter,
                               GLint magfilter, int colorkey, int red, int green,
                               int blue, int components, GLenum format,
                               void *data, int width, int height);
 
-const texture_t *texmgrSubdivideTexture(const texture_t *texture,
+texture_t *texmgrSubdivideTexture(const texture_t *texture,
                                         const char *name,
                                         int x1, int y1, int x2, int y2,
                                         GLint minfilter, GLint magfilter);

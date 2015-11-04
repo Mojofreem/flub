@@ -302,12 +302,13 @@ void gfxSpriteDestroy(flubSprite_t *sprite) {
 	util_free(sprite);
 }
 
-void _sortFourValues(int *a, int *b, int *c, int *d) {
+static int _sortFourValues(int *a, int *b, int *c, int *d) {
 	static const int max_idx = 4;
 	int *ptrs[4] = {a, b, c, d};
 	int swap;
 	int j, k;
 
+    // Swap the 4 values to arrange in ascending order
 	for(j = 0; j < (max_idx - 1); j++) {
 		for(k = j + 1; k < max_idx; k++) {
 			if(*(ptrs[k]) < *(ptrs[j])) {
@@ -317,46 +318,223 @@ void _sortFourValues(int *a, int *b, int *c, int *d) {
 			}
 		}
 	}
+#if 1
+    // Shift specified widths to place zero width pairs at the end
+    // Eight possible permutations, (- blank, + width):
+    //  - - -
+    //  - - +
+    //  - + -
+    //  - + +
+    //  + - +
+    //  + - -
+    //  + + -
+    //  + + +
+    //  The last 3 are in valid sort order
+
+    // - - -
+    // - - +
+    // - + -
+    // - + +
+    if(*(ptrs[0]) == *(ptrs[1])) { // -
+        if(*(ptrs[1]) == *(ptrs[2])) { // - -
+            if(*(ptrs[2]) == *(ptrs[3])) { // - - -
+                return 0;
+            } else { // - - +
+                *(ptrs[1]) = *(ptrs[3]);
+                *(ptrs[2]) = *(ptrs[1]);
+                return 1;
+            }
+        } else { // - +
+            if(*(ptrs[2]) == *(ptrs[3])) { // - + -
+                *(ptrs[1]) = *(ptrs[3]);
+                return 1;
+            } else { // - + +
+                *(ptrs[1]) = *(ptrs[2]);
+                *(ptrs[2]) = *(ptrs[3]);
+                return 2;
+            }
+        }
+    } else {
+        // + - +
+        if((*(ptrs[0]) != *(ptrs[1])) && (*(ptrs[1]) == *(ptrs[2])) && (*(ptrs[2]) == *(ptrs[3]))) {
+            *(ptrs[2]) = *(ptrs[3]);
+            return 2;
+        }
+    }
+
+    // + - -
+    // + + -
+    // + + +
+    if(*(ptrs[1]) == *(ptrs[2])) { // + - -
+        return 1;
+    }
+    if(*(ptrs[2]) == *(ptrs[3])) { // + + -
+        return 2;
+    }
+    // + + +
+    return 3;
+#else
+    return 0;
+#endif
+
 }
 
 /*
+typedef struct flubSlice_s {
+    const texture_t *textures[3][3];
+    int width;
+    int height;
+} flubSlice_t;
+*/
 
- +---+---+---+
- | A | B | C |
- +---+---+---+
- | D | E | F |
- +---+---+---+
- | G | H | I |
- +---+---+---+
+flubSlice_t *gfxSliceCreate(const texture_t *texture,
+                            int x1, int y1, int x2, int y2, int x3,
+                            int y3, int x4, int y4) {
+    flubSlice_t *slice;
+    int x, y;
+    int fail = 0;
 
- Configurations:
-    9 slice: A B C D E F G H I
-    6 slice: A B C D E F  or  A B D E G H
-    3 slice: A B C  or  A D G
+#if 1
+    // Sort the coords values in ascending order, removing zero width gaps
+    x = _sortFourValues(&x1, &x2, &x3, &x4);
+    y = _sortFourValues(&y1, &y2, &y3, &y4);
+    if((x == 0) || (x == 2)) {
+        // Invalid width specifiers
+        fail = 1;
+    }
+    if((y == 0) || (y == 2)) {
+        // Invalid height specifiers
+        fail = 1;
+    }
+    if((x == 1) && (y == 1)) {
+        // No expanding sections
+        fail = 1;
+    }
+    if(fail) {
+        errorf("Invalid splice dimensions: (%d,%d)-(%d,%d)-(%d,%d)-(%d,%d) - %d:%d",
+               x1, y1, x2, y2, x3, y3, x4, y4, x, y);
+        return NULL;
+    }
 
- Variable modes:
-    stretch
-    tile
+    if((x4 >= texture->width) || (y4 >= texture->height)) {
+        // The slice coords are larger than the texture
+        errorf("Slice coordinates are larger than texture size: (%d,%d) - %dx%d",
+               x4, y4, texture->width, texture->height);
+        return NULL;
+    }
+
+    if(!((x3 > x2) || (y3 > y2))) {
+        // This has no expanding sections, it's invalid
+        return NULL;
+    }
+
+    // Only 1x3, 3x1, or 3x3 makes it here (aligned left and top)
+#else
+#endif
+
+    slice = util_calloc(sizeof(flubSlice_t), 0, NULL);
+    slice->textures[0][0] = texmgrSubdivideTexture(texture, NULL, x1, y1, x2, y2, GL_NEAREST, GL_NEAREST);
+    if(x2 != x3) {
+        // Either 1x3 or 3x3
+        slice->textures[0][1] = texmgrSubdivideTexture(texture, NULL, x2, y1, x3, y2, GL_NEAREST, GL_NEAREST);
+        slice->textures[0][2] = texmgrSubdivideTexture(texture, NULL, x3, y1, x4, y2, GL_NEAREST, GL_NEAREST);
+        if (y2 != y3) {
+            // 3 x 3
+            slice->textures[1][0] = texmgrSubdivideTexture(texture, NULL, x1, y2, x2, y3, GL_NEAREST, GL_NEAREST);
+            slice->textures[1][1] = texmgrSubdivideTexture(texture, NULL, x2, y2, x3, y3, GL_NEAREST, GL_NEAREST);
+            slice->textures[1][2] = texmgrSubdivideTexture(texture, NULL, x3, y2, x4, y3, GL_NEAREST, GL_NEAREST);
+
+            slice->textures[2][0] = texmgrSubdivideTexture(texture, NULL, x1, y3, x2, y4, GL_NEAREST, GL_NEAREST);
+            slice->textures[2][1] = texmgrSubdivideTexture(texture, NULL, x2, y3, x3, y4, GL_NEAREST, GL_NEAREST);
+            slice->textures[2][2] = texmgrSubdivideTexture(texture, NULL, x3, y3, x4, y4, GL_NEAREST, GL_NEAREST);
+        }
+    } else {
+        // 3 x 1
+        slice->textures[1][0] = texmgrSubdivideTexture(texture, NULL, x2, y1, x3, y2, GL_NEAREST, GL_NEAREST);
+        slice->textures[2][0] = texmgrSubdivideTexture(texture, NULL, x3, y1, x4, y2, GL_NEAREST, GL_NEAREST);
+    }
+    slice->width = ((x4 - x3) + (x3 - x2) + (x2 - x1));
+    slice->height = ((y4 - y3) + (y3 - y2) + (y2 - y1));
+
+#if 0
+    for(y = 0; y < 3; y++) {
+        for(x = 0; x < 3; x++) {
+            if(slice->textures[y][x] == NULL) {
+                infof("Slice [%d][%d] = NULL", y, x);
+            } else {
+                infof("Slice [%d][%d] = %d [%dx%d]", y, x, slice->textures[y][x]->id, slice->textures[y][x]->width, slice->textures[y][x]->height);
+            }
+        }
+    }
+#endif
+    return slice;
+}
+
+void gfxSliceDestroy(flubSlice_t *slice) {
+    util_free(slice);
+}
+
+flubSlice_t *gfx3x3SliceCreate(const texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3,
+                               int y3, int x4, int y4) {
+    return gfxSliceCreate(texture, x1, y1, x2, y2, x3, y3, x4, y4);
+}
+
+flubSlice_t *gfx1x3SliceCreate(const texture_t *texture,
+                               int x1, int y1, int x2, int y2, int y3, int y4) {
+    return gfxSliceCreate(texture, x1, y1, x2, y2, x2, y3, x2, y4);
+}
+
+flubSlice_t *gfx3x1SliceCreate(const texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3, int x4) {
+    return gfxSliceCreate(texture, x1, y1, x2, y2, x3, y2, x4, y2);
+}
 
 
- Each row and column can be fixed, stretched, tiled, or empty
+void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height) {
+    int w = 0;
+    int h = 0;
+    int cw = 0;
+    int ch = 0;
+    int k;
 
-    | F | S | T | E |
- ---+---+---+---+---+
-  F | F | S | T | E |
- ---+---+---+---+---+
-  S | S | S | T | E |
- ---+---+---+---+---+
-  T | T | T | T | E |
- ---+---+---+---+---+
-  E | E | E | E | E |
- ---+---+---+---+---+
+    if(width != NULL) {
+        w = *width;
+    }
+    if(height != NULL) {
+        h = *height;
+    }
+    if(slice->textures[0][0] != NULL) {
+        cw = slice->textures[0][0]->width;
+        ch = slice->textures[0][0]->height;
+    }
+    if(slice->textures[0][2] != NULL) {
+        cw += slice->textures[0][2]->width;
+    }
+    if(slice->textures[2][0] != NULL) {
+        ch += slice->textures[2][0]->height;
+    }
+    if(slice->textures[0][1] != NULL) {
+        while(cw < w) {
+            cw += slice->textures[0][1]->width;
+        }
+    }
+    if(slice->textures[1][0] != NULL) {
+        while(ch < h) {
+            ch += slice->textures[1][0]->height;
+        }
+    }
+    if(width != NULL) {
+        *width = cw;
+    }
+    if(height != NULL) {
+        *height = ch;
+    }
+}
 
 
 
-
-
- */
+#if 0
 flubSlice_t *gfxSliceCreate(const texture_t *texture,
                             int x1, int y1, int x2, int y2, int x3,
                             int y3, int x4, int y4) {
@@ -419,6 +597,8 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
 void gfxSliceDestroy(flubSlice_t *slice) {
 	util_free(slice);
 }
+
+#endif
 
 void gfx2dClipRegionSet(int x1, int y1, int x2, int y2) {
 	// TODO Validate the scissor clip logic
@@ -970,6 +1150,107 @@ void gfxSpriteBlitResize(const flubSprite_t *sprite, int num, int x1, int y1,
 	gfxTexBlitSub(sprite->texture, tx1, ty1, tx2, ty2, x1, y1, x2, y2);
 }
 
+static void _sliceDrawSegment(texture_t *tex, int x1, int y1, int x2, int y2, float w, float h) {
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBegin( GL_QUADS );
+    glTexCoord2f(0, 0);
+    glVertex2i(x1, y1);
+    glTexCoord2f(w, 0);
+    glVertex2i(x2, y1);
+    glTexCoord2f(w, h);
+    glVertex2i(x2, y2);
+    glTexCoord2f(0, h);
+    glVertex2i(x1, y2);
+    glEnd();
+}
+
+void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+    int ref, dim[2][6], x, y;
+    int offset;
+    float fx, fy;
+    int width = x2 - x1 + 1;
+    int height = y2 - y1 + 1;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLoadIdentity();
+
+    if(width < slice->width) {
+        width = slice->width;
+    }
+    if(height < slice->height) {
+        height = slice->height;
+    }
+    x = x1 + slice->textures[0][0]->width;
+    y = y1 + slice->textures[0][0]->height;
+    _sliceDrawSegment(slice->textures[0][0], x1, y1, x, y,
+                      1.0, 1.0);
+    width -= slice->textures[0][0]->width;
+    height -= slice->textures[0][0]->height;
+
+    if(slice->textures[1][0] != NULL) {
+        height -= slice->textures[2][0]->height;
+        fy = height / slice->textures[1][0]->height;
+        fy += SCALED_T_COORD(slice->textures[1][0]->height, (height % slice->textures[1][0]->height));
+    }
+    if(slice->textures[0][1] != NULL) {
+        width -= slice->textures[0][2]->width;
+        fx = width / slice->textures[0][1]->width;
+        fx += SCALED_T_COORD(slice->textures[0][1]->width, (width % slice->textures[0][1]->width));
+    }
+    if(slice->textures[0][1] != NULL) {
+        // 3x1
+        _sliceDrawSegment(slice->textures[0][1],
+                          x, y1,
+                          x + width, y,
+                          fx, 1.0);
+        _sliceDrawSegment(slice->textures[0][2],
+                          x + width, y1,
+                          x + width + slice->textures[0][2]->width, y,
+                          1.0, 1.0);
+        if(slice->textures[1][0] != NULL) {
+            // 3x3
+            // Second row
+            _sliceDrawSegment(slice->textures[1][0], x1, y,
+                              x, y + height,
+                              1.0, 1.0);
+            _sliceDrawSegment(slice->textures[1][1],
+                              x, y,
+                              x + width, y + height,
+                              fx, fy);
+            _sliceDrawSegment(slice->textures[1][2],
+                              x + width, y,
+                              x + width + slice->textures[1][2]->width, y + height,
+                              1.0, 1.0);
+            // Third row
+            y += height;
+            _sliceDrawSegment(slice->textures[2][0], x1, y,
+                              x, y + slice->textures[2][0]->height,
+                              1.0, 1.0);
+            _sliceDrawSegment(slice->textures[2][1],
+                              x, y,
+                              x + width, y + slice->textures[2][1]->height,
+                              fx, 1.0);
+            _sliceDrawSegment(slice->textures[2][2],
+                              x + width, y,
+                              x + width + slice->textures[2][2]->width,
+                              y + slice->textures[2][2]->height,
+                              1.0, 1.0);
+        }
+    } else {
+        // 1x3
+        _sliceDrawSegment(slice->textures[1][0],
+                          x1, y,
+                          x - 1, y + height - 1,
+                          1.0, fy);
+        _sliceDrawSegment(slice->textures[2][0],
+                          x1, y + height,
+                          x - 1, y + height + slice->textures[2][0]->height - 1,
+                          1.0, 1.0);
+    }
+}
+
+#if 0
 void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
 	int ref, dim[2][6], x, y;
 
@@ -1035,6 +1316,7 @@ void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
 		}
 	}
 }
+#endif
 
 #if 0
 void gfxKeycapBlit(font_t *font, const char *caption, int x, int y,
@@ -1299,6 +1581,7 @@ int gfxSpriteMeshBlitResize(gfxMeshObj_t *mesh, const flubSprite_t *sprite,
 
 int gfxSliceMeshBlit(gfxMeshObj_t *mesh, const flubSlice_t *slice,
 					 int x1, int y1, int x2, int y2) {
+#if 0
 	gfxMeshObj_t *target;
 
 	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, slice->texture)) == NULL)) {
@@ -1311,7 +1594,7 @@ int gfxSliceMeshBlit(gfxMeshObj_t *mesh, const flubSlice_t *slice,
 
 	gfxSliceMeshBlitAtPos(target, target->pos, &(target->pos), slice,
 						  x1, y1, x2, y2);
-
+#endif
 	return 1;
 }
 
@@ -1514,6 +1797,7 @@ void gfxSpriteMeshBlitResizeAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 
 void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 						  const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+#if 0
 	gfxMeshObj_t *target;
 	int ref, dim[2][6], x, y;
 
@@ -1567,6 +1851,7 @@ void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 			break;
 		}
 	}
+#endif
 }
 
 void gfxMeshRangeAlphaSet(gfxMeshObj_t *mesh, int start, int end, float alpha) {

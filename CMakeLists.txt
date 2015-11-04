@@ -132,6 +132,11 @@ FLUBRESOURCE(sounds/consoleopen.wav sounds/consoleopen.wav)
 FLUBRESOURCE(sounds/menumove.wav sounds/menumove.wav)
 FLUBRESOURCE(sounds/menuselect.wav sounds/menuselect.wav)
 
+# OpenGL shader resources
+FLUBRESOURCE(shaders/simple.vert shaders/simple.vert)
+FLUBRESOURCE(shaders/simple.frag shaders/simple.frag)
+FLUBRESOURCE(shaders/stbfont.frag shaders/stbfont.frag)
+
 ###############################################################################
 # Font conversion utility
 ###############################################################################
@@ -211,12 +216,12 @@ ENDFUNCTION(FLUB_APP_DEPS)
 ADD_EXECUTABLE (flubtest test/test.c)
 FLUB_APP_DEPS (flubtest)
 
-ADD_EXECUTABLE (themer tools/themer.c)
-FLUB_APP_DEPS (themer)
+#ADD_EXECUTABLE (themer tools/themer.c)
+#FLUB_APP_DEPS (themer)
 
-ADD_CUSTOM_COMMAND(OUTPUT ${FLUB_RESOURCE_DIR}/flub_calibrate.c ${FLUB_RESOURCE_DIR}/flub_calibrate.h DEPENDS memfile DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/work/flub-calibrate.gif COMMAND memfile ${FLUB_RESOURCE_DIR}/flub_calibrate flubResCalibrate -b ${FLUB_RESOURCE_DIR}/ ${CMAKE_CURRENT_SOURCE_DIR}/work/flub-calibrate.gif -p resources/images/flub-calibrate.gif COMMENT "Building pixperfect resource cache source file.")
-ADD_EXECUTABLE (pixperfect test/pixperfect.c ${FLUB_RESOURCE_DIR}/flub_calibrate.c)
-FLUB_APP_DEPS (pixperfect)
+#ADD_CUSTOM_COMMAND(OUTPUT ${FLUB_RESOURCE_DIR}/flub_calibrate.c ${FLUB_RESOURCE_DIR}/flub_calibrate.h DEPENDS memfile DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/work/flub-calibrate.gif COMMAND memfile ${FLUB_RESOURCE_DIR}/flub_calibrate flubResCalibrate -b ${FLUB_RESOURCE_DIR}/ ${CMAKE_CURRENT_SOURCE_DIR}/work/flub-calibrate.gif -p resources/images/flub-calibrate.gif COMMENT "Building pixperfect resource cache source file.")
+#ADD_EXECUTABLE (pixperfect test/pixperfect.c ${FLUB_RESOURCE_DIR}/flub_calibrate.c)
+#FLUB_APP_DEPS (pixperfect)
 
-ADD_EXECUTABLE(circbuftest test/circbuftest.c)
-FLUB_APP_DEPS(circbuftest)
+#ADD_EXECUTABLE(circbuftest test/circbuftest.c)
+#FLUB_APP_DEPS(circbuftest)

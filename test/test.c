@@ -435,11 +435,13 @@ int main(int argc, char *argv[]) {
     gfxEffectRegister(effect);
 
 
+    /*
     if((!flubFontLoad("pirulen.30.stbfont")) ||
        ((pfont = fontGet("pirulen", 30, 0)) == NULL)) {
         fatal("Unable to load pirulen font");
         return 0;
     }
+    */
 
     inputActionBind("KEY_BACKQUOTE", "showconsole");
     //glBlendFunc(GL_ONE, GL_ZERO);
@@ -620,6 +622,7 @@ int main(int argc, char *argv[]) {
 
         gfxMeshRender(meshChain);
 
+        gfxSliceBlit(slice, 100, 150, 300, 250);
         //videoPopGLState();
 
         if(!appUpdate(current)) {

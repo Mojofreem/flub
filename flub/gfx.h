@@ -20,17 +20,13 @@
 #define GFX_Y_LOCKED	2
 
 // http://stackoverflow.com/questions/5879403/opengl-texture-coordinates-in-pixel-space
-#define SCALED_T_COORD(t,v)	(((2.0f * ((float)v)) + 1.0f)/(2.0f * ((float)t)))
+#define SCALED_T_COORD(t,v)	(((2.0f * ((float)(v))) + 1.0f)/(2.0f * ((float)(t))))
 
-
-// Gfx module init/shutdown
 
 int gfxInit(void);
 int gfxValid(void);
 int gfxStart(void);
 int gfxShutdown(void);
-
-// Simple sprite support
 
 typedef struct flubSprite_s {
 	const texture_t *texture;
@@ -39,21 +35,15 @@ typedef struct flubSprite_s {
 	int height;
 } flubSprite_t;
 
-
 flubSprite_t *gfxSpriteCreate(const texture_t *texture, int width, int height);
 void gfxSpriteDestroy(flubSprite_t *sprite);
 
-// Slice image support
+#define FLUB_SLICE_3_BY_3   0
+#define FLUB_SLICE_1_BY_3   1
+#define FLUB_SLICE_3_BY_1   2
 
 typedef struct flubSlice_s {
-	const texture_t *texture;
-	int quads;
-	int locked;
-	int xPre;
-	int xPost;
-	int yPre;
-	int yPost;
-	float tcoords[2][4];
+	texture_t *textures[3][3];
 	int width;
 	int height;
 } flubSlice_t;
@@ -118,6 +108,10 @@ typedef struct VBOColor_s {
 	float b;
 	float a;
 } VBOColor_t;
+
+typedef struct gfxMeshObj2D_s {
+
+} gfxMeshObj2D_t;
 
 typedef struct gfxMeshObj_s {
 	gfxMeshInitCB_t initCB;

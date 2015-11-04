@@ -313,7 +313,7 @@ stbi_io_callbacks _physfsTexLoadCallbacks = {
         _physfsEofHandler
 };
 
-const int _texmgrFileLoad(const char *name, const char *filename, texEntry_t *entry) {
+int _texmgrFileLoad(const char *name, const char *filename, texEntry_t *entry) {
     PHYSFS_file *imgfile;
     char buf[32];
 
@@ -394,7 +394,7 @@ const int _texmgrFileLoad(const char *name, const char *filename, texEntry_t *en
     return 1;
 }
 
-const texture_t *texmgrLoad(const char *filename, const char *name,
+texture_t *texmgrLoad(const char *filename, const char *name,
                             GLint minfilter, GLint magfilter, int colorkey,
                             int red, int green, int blue) {
     texEntry_t *entry;
@@ -414,18 +414,20 @@ const texture_t *texmgrLoad(const char *filename, const char *name,
     return NULL;
 }
 
-const texture_t *texmgrCreate(const char *name, GLint minfilter,
+texture_t *texmgrCreate(const char *name, GLint minfilter,
                               GLint magfilter, int colorkey, int red, int green,
                               int blue, int components, GLenum format,
                               void *data, int width, int height) {
     texEntry_t *entry;
 
+#if 0
     // Check that the image's width and height are a power of 2
     if((((width != 0) && (width & (width - 1))) != 0) &&
        (((height != 0) && (height & (height - 1))) != 0)) {
         errorf("The image (%dx%d) is not a power of 2 in size.", width, height);
         return NULL;
     }
+#endif
 
     if((entry = _texmgrEntryCreate(name, NULL, minfilter, magfilter, colorkey, red, green, blue)) == NULL) {
         return NULL;
@@ -461,12 +463,12 @@ const texture_t *texmgrCreate(const char *name, GLint minfilter,
     return &entry->texture;
 }
 
-const texture_t *texmgrSubdivideTexture(const texture_t *texture,
+texture_t *texmgrSubdivideTexture(const texture_t *texture,
                                         const char *name,
                                         int x1, int y1, int x2, int y2,
                                         GLint minfilter, GLint magfilter) {
     texEntry_t *orig;
-    const texture_t *entry;
+    texture_t *entry;
     int pitch;
     unsigned char *data;
     int width;
