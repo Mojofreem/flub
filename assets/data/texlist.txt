@@ -1,3 +1,4 @@
 # name|filename|min|mag|colorkey (#rgb|#rrggbb|r,g,b)
 flub-keycap-misc|resources/images/flub-keycap-misc.gif|GL_NEAREST|GL_NEAREST|magenta
 flub-simple-gui|resources/images/flub-simple-gui.gif|GL_NEAREST|GL_NEAREST|magenta
+flub-slice-test|resources/images/flub-slice-test.gif|GL_NEAREST|GL_NEAREST|magenta

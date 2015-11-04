@@ -280,6 +280,10 @@ int main(int argc, char *argv[]) {
     gfxMeshObj_t *meshMisc;
     gfxEffect_t *effect;
 
+    flubSlice_t *healthBar;
+    flubSlice_t *expBar;
+    texture_t *rawSlices;
+
     int tileMap[127];
     char *scene[3] = {
             "#######\n#UIIIO#\n#JKKKL#\n#WWWWW#\n#######\n#######\n#######",
@@ -355,6 +359,16 @@ int main(int argc, char *argv[]) {
     //sliceTest = gfxSliceCreate(dlg, 145, 6, 150, 11, 182, 27, 186, 31);
     //infof("Texture id for flubmisc1 is %d", misc->id);
 
+    rawSlices = texmgrGet("flub-slice-test");
+    if(rawSlices == NULL) {
+        fatal("Failed to load slices");
+        return 1;
+    }
+
+    healthBar = gfx3x1SliceCreate(rawSlices, 0, 106, 28, 130, 34, 42);
+    info("== Expbar =========");
+    expBar = gfx1x3SliceCreate(rawSlices, 44, 106, 60, 128, 137, 152);
+    info("== Done expbar ====");
     //vboTestInit(misc->id);
 
     sound = audioSoundGet("resources/sounds/menumove.wav");
@@ -623,6 +637,9 @@ int main(int argc, char *argv[]) {
         gfxMeshRender(meshChain);
 
         gfxSliceBlit(slice, 100, 150, 300, 250);
+        gfxSliceBlit(healthBar, 10, *videoHeight - healthBar->height - 10, 300, *videoHeight - 10);
+        gfxSliceBlit(expBar, 10, *videoWidth - expBar->width - 10, *videoHeight - 10, *videoWidth - 10);
+        gfxSliceBlit(expBar, 10, 10, 50, 200);
         //videoPopGLState();
 
         if(!appUpdate(current)) {

@@ -595,7 +595,7 @@ int texmgrRegFile(const char *filename) {
     return 1;
 }
 
-const texture_t *texmgrGet(const char *name) {
+texture_t *texmgrGet(const char *name) {
     texEntry_t *entry = NULL;
 
     mutexGrab(g_texmgrCtx.mutex);

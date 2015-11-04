@@ -62,7 +62,7 @@ texture_t *texmgrSubdivideTexture(const texture_t *texture,
 int texmgrRegStr(const char *str);
 int texmgrRegFile(const char *filename);
 
-const texture_t *texmgrGet(const char *name);
+texture_t *texmgrGet(const char *name);
 int texmgrRelease(const texture_t *tex);
 
 const char *texmgrGLMinFilterStr(GLint filter);

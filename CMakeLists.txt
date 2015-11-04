@@ -124,6 +124,7 @@ ENDFUNCTION(FLUBRESOURCE)
 FLUBRESOURCE(data/texlist.txt data/texlist.txt)
 FLUBRESOURCE(images/flub-simple-gui.gif images/flub-simple-gui.gif)
 FLUBRESOURCE(images/flub-keycap-misc.gif images/flub-keycap-misc.gif)
+FLUBRESOURCE(images/flub-slice-test.gif images/flub-slice-test.gif)
 
 # Sound resources
 FLUBRESOURCE(sounds/click.wav sounds/click.wav)

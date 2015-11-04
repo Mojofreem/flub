@@ -356,7 +356,7 @@ static int _sortFourValues(int *a, int *b, int *c, int *d) {
         }
     } else {
         // + - +
-        if((*(ptrs[0]) != *(ptrs[1])) && (*(ptrs[1]) == *(ptrs[2])) && (*(ptrs[2]) == *(ptrs[3]))) {
+        if((*(ptrs[0]) != *(ptrs[1])) && (*(ptrs[1]) == *(ptrs[2])) && (*(ptrs[2]) != *(ptrs[3]))) {
             *(ptrs[2]) = *(ptrs[3]);
             return 2;
         }
@@ -435,7 +435,7 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
     slice = util_calloc(sizeof(flubSlice_t), 0, NULL);
     slice->textures[0][0] = texmgrSubdivideTexture(texture, NULL, x1, y1, x2, y2, GL_NEAREST, GL_NEAREST);
     if(x2 != x3) {
-        // Either 1x3 or 3x3
+        // Either 3x1 or 3x3
         slice->textures[0][1] = texmgrSubdivideTexture(texture, NULL, x2, y1, x3, y2, GL_NEAREST, GL_NEAREST);
         slice->textures[0][2] = texmgrSubdivideTexture(texture, NULL, x3, y1, x4, y2, GL_NEAREST, GL_NEAREST);
         if (y2 != y3) {
@@ -449,14 +449,14 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
             slice->textures[2][2] = texmgrSubdivideTexture(texture, NULL, x3, y3, x4, y4, GL_NEAREST, GL_NEAREST);
         }
     } else {
-        // 3 x 1
-        slice->textures[1][0] = texmgrSubdivideTexture(texture, NULL, x2, y1, x3, y2, GL_NEAREST, GL_NEAREST);
-        slice->textures[2][0] = texmgrSubdivideTexture(texture, NULL, x3, y1, x4, y2, GL_NEAREST, GL_NEAREST);
+        // 1 x 3
+        slice->textures[1][0] = texmgrSubdivideTexture(texture, NULL, x1, y2, x2, y3, GL_NEAREST, GL_NEAREST);
+        slice->textures[2][0] = texmgrSubdivideTexture(texture, NULL, x1, y3, x2, y4, GL_NEAREST, GL_NEAREST);
     }
     slice->width = ((x4 - x3) + (x3 - x2) + (x2 - x1));
     slice->height = ((y4 - y3) + (y3 - y2) + (y2 - y1));
 
-#if 0
+#if 1
     for(y = 0; y < 3; y++) {
         for(x = 0; x < 3; x++) {
             if(slice->textures[y][x] == NULL) {
@@ -1241,11 +1241,11 @@ void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
         // 1x3
         _sliceDrawSegment(slice->textures[1][0],
                           x1, y,
-                          x - 1, y + height - 1,
+                          x, y + height,
                           1.0, fy);
         _sliceDrawSegment(slice->textures[2][0],
                           x1, y + height,
-                          x - 1, y + height + slice->textures[2][0]->height - 1,
+                          x, y + height + slice->textures[2][0]->height,
                           1.0, 1.0);
     }
 }
