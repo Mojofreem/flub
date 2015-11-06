@@ -195,7 +195,7 @@ void blitSpriteMap(flubSprite_t *sprite, int x, int y, int *dict, char **map, in
     }
 }
 
-void blitMeshSpriteMap(gfxMeshObj_t *mesh, flubSprite_t *sprite, int x, int y, int *dict, char **map, int layers) {
+void blitMeshSpriteMap(gfxMeshObj2_t *mesh, flubSprite_t *sprite, int x, int y, int *dict, char **map, int layers) {
     int layer;
     int idx;
     int pos;
@@ -213,14 +213,14 @@ void blitMeshSpriteMap(gfxMeshObj_t *mesh, flubSprite_t *sprite, int x, int y, i
                 workY += sprite->height;
             } else {
                 idx = dict[map[layer][pos]];
-                gfxSpriteMeshBlit(mesh, sprite, idx, workX, workY);
+                gfxSpriteMeshBlit2(mesh, sprite, idx, workX, workY);
                 workX += sprite->width;
             }
         }
     }
 }
 
-gfxMeshObj_t *effectMesh;
+gfxMeshObj2_t *effectMesh;
 int effectStart;
 int effectStop;
 
@@ -254,30 +254,30 @@ int main(int argc, char *argv[]) {
     Uint32 counter = 0;
     //GLuint img, fid;
     int iw, ih, fw, fh;
-    const texture_t *dlg;
-    const texture_t *misc;
+    texture_t *dlg;
+    texture_t *misc;
     flubSlice_t *slice;
     //flubSlice_t *sliceTest;
     font_t *fnt;
     int eventCount;
     int pos;
     int w;
-    gfxMeshObj_t *mesh;
-    gfxMeshObj_t *fontMesh;
+    gfxMeshObj2_t *mesh;
+    gfxMeshObj2_t *fontMesh;
     sound_t *sound;
     char cwdbuf[1024];
     font_t *pfont;
 
-    const texture_t *tex_misc;
-    const texture_t *tex_dlg;
-    const texture_t *tex_tiles;
+    texture_t *tex_misc;
+    texture_t *tex_dlg;
+    texture_t *tex_tiles;
     flubSlice_t *dlg_title;
     flubSlice_t *dlg_body;
-    gfxMeshObj_t *meshFont;
-    gfxMeshObj_t *meshChain;
-    gfxMeshObj_t *meshDlg;
-    gfxMeshObj_t *meshTiles;
-    gfxMeshObj_t *meshMisc;
+    gfxMeshObj2_t *meshFont;
+    gfxMeshObj2_t *meshChain;
+    gfxMeshObj2_t *meshDlg;
+    gfxMeshObj2_t *meshTiles;
+    gfxMeshObj2_t *meshMisc;
     gfxEffect_t *effect;
 
     flubSlice_t *healthBar;
@@ -373,9 +373,9 @@ int main(int argc, char *argv[]) {
 
     sound = audioSoundGet("resources/sounds/menumove.wav");
 
-    mesh = gfxMeshCreate(MESH_QUAD_SIZE(40), 0, misc);
+    mesh = gfxMeshCreate2(MESH_QUAD_SIZE(40), 0, misc);
     //infof("The mesh is 0x%p", mesh);
-    gfxTexMeshBlit(mesh, misc, 20, 20);
+    gfxTexMeshBlit2(mesh, misc, 20, 20);
     //gfxMeshBlit(mesh, 220, 20);
     //gfxMeshBlit(mesh, 420, 20);
     //gfxMeshBlit(mesh, 20, 220);
@@ -384,8 +384,8 @@ int main(int argc, char *argv[]) {
 
     //infof("Vertices: %d", mesh->pos);
 
-    fontMesh = gfxMeshCreate(256 * 2, GFX_MESH_FLAG_COLOR, NULL);
-    gfxMeshTextureAssign(fontMesh, fontTextureGet(fnt));
+    fontMesh = gfxMeshCreate2(256 * 2, GFX_MESH_FLAG_COLOR, NULL);
+    gfxMeshTextureAssign2(fontMesh, fontTextureGet(fnt));
 
     fontPos(150, 240);
     fontBlitCMesh(fontMesh, fnt, 'F');
@@ -408,40 +408,48 @@ int main(int argc, char *argv[]) {
     tex_misc = texmgrGet("flub-keycap-misc");
     tex_dlg = texmgrGet("dungeondlg2");
     tex_tiles = texmgrLoad( "work/tiletest.gif", "testtiles", GL_NEAREST, GL_NEAREST, 1, 255, 0, 255);
+    if(tex_tiles == NULL) {
+        fatal("Failed to load the tiles");
+        return 1;
+    } else {
+        infof("Tileset loaded: %dx%d", tex_tiles->width, tex_tiles->height);
+    }
 
     sprites = gfxSpriteCreate(tex_tiles, 16, 16);
+    infof("Sprite set: %d - %dx%d, %d per row", sprites->texture->id,
+          sprites->width, sprites->height, sprites->spritesPerRow);
 
     dlg_title = gfxSliceCreate(tex_misc, 41, 17, 43, 19, 60, 26, 62, 28);
     dlg_body = gfxSliceCreate(tex_misc, 41, 29, 43, 30, 60, 40, 62, 42);
 
     // Create meshes for font, flubmisc, and flubsimplegui
-    meshFont = gfxMeshCreate(MESH_QUAD_SIZE(100), GFX_MESH_FLAG_COLOR, fontTextureGet(fnt));
-    meshDlg = gfxMeshCreate(MESH_QUAD_SIZE(200), GFX_MESH_FLAG_COLOR, tex_dlg);
-    meshTiles = gfxMeshCreate(MESH_QUAD_SIZE(400), 0, tex_tiles);
-    meshMisc = gfxMeshCreate(MESH_QUAD_SIZE(400), GFX_MESH_FLAG_COLOR, tex_misc);
+    meshFont = gfxMeshCreate2(MESH_QUAD_SIZE(100), GFX_MESH_FLAG_COLOR, fontTextureGet(fnt));
+    meshDlg = gfxMeshCreate2(MESH_QUAD_SIZE(200), GFX_MESH_FLAG_COLOR, tex_dlg);
+    meshTiles = gfxMeshCreate2(MESH_QUAD_SIZE(400), 0, tex_tiles);
+    meshMisc = gfxMeshCreate2(MESH_QUAD_SIZE(400), GFX_MESH_FLAG_COLOR, tex_misc);
 
     meshChain = meshFont;
-    gfxMeshAppendToChain(meshChain, meshMisc);
-    gfxMeshAppendToChain(meshChain, meshDlg);
-    gfxMeshAppendToChain(meshChain, meshTiles);
+    gfxMeshAppendToChain2(meshChain, meshMisc);
+    gfxMeshAppendToChain2(meshChain, meshDlg);
+    gfxMeshAppendToChain2(meshChain, meshTiles);
 
     // Excercise mesh blitters
-    gfxTexMeshBlit(meshChain, tex_misc, 400, 5);
-    gfxTexMeshBlitSub(meshChain, tex_dlg, 145, 6, 186, 31, 400, 200, 450, 250);
-    gfxTexMeshTile(meshChain, tex_dlg, 150, 11, 180, 25, 400, 260, 500, 400);
+    gfxTexMeshBlit2(meshChain, tex_misc, 400, 5);
+    gfxTexMeshBlitSub2(meshChain, tex_dlg, 145, 6, 186, 31, 400, 200, 450, 250);
+    gfxTexMeshTile2(meshChain, tex_dlg, 150, 11, 180, 25, 400, 260, 500, 400);
     blitMeshSpriteMap(meshChain, sprites, 200, 20, tileMap, scene, 3);
-    gfxSpriteMeshBlitResize(meshChain, sprites, 36, 0, 0, 63, 63);
+    gfxSpriteMeshBlitResize2(meshChain, sprites, 36, 0, 0, 63, 63);
 
 
-    gfxSliceMeshBlit(meshChain, dlg_title, 200, 300, 320, 315);
-    gfxSliceMeshBlit(meshChain, dlg_body, 200, 316, 320, 440);
-    gfxKeycapMeshBlit(meshChain, fnt, "META_WINDOWS", 200, 260, NULL, NULL);
-    gfxKeycapMeshBlit(meshChain, fnt, "Ctrl", 240, 260, NULL, NULL);
-    gfxKeycapMeshBlit(meshChain, fnt, "PgDn", 280, 260, NULL, NULL);
+    gfxSliceMeshBlit2(meshChain, dlg_title, 200, 300, 320, 315);
+    gfxSliceMeshBlit2(meshChain, dlg_body, 200, 316, 320, 440);
+    gfxKeycapMeshBlit2(meshChain, fnt, "META_WINDOWS", 200, 260, NULL, NULL);
+    gfxKeycapMeshBlit2(meshChain, fnt, "Ctrl", 240, 260, NULL, NULL);
+    gfxKeycapMeshBlit2(meshChain, fnt, "PgDn", 280, 260, NULL, NULL);
 
     effectMesh = meshDlg;
     effectStart = meshDlg->pos;
-    gfxSliceMeshBlit(meshDlg, slice, 10, 50, 150, 190);
+    gfxSliceMeshBlit2(meshDlg, slice, 10, 50, 150, 190);
     effectStop = meshDlg->pos;
 
     effect = gfxEffectFade(effectMesh, effectStart, effectStop, 0.0, 1.0, 2000);
@@ -634,12 +642,14 @@ int main(int argc, char *argv[]) {
         //gfxGLBlit(misc->id, 5, 100, 5 + misc->width, 100 + misc->height);
 
 
-        gfxMeshRender(meshChain);
+        gfxMeshRender2(meshChain);
 
-        gfxSliceBlit(slice, 100, 150, 300, 250);
-        gfxSliceBlit(healthBar, 10, *videoHeight - healthBar->height - 10, 300, *videoHeight - 10);
-        gfxSliceBlit(expBar, 10, *videoWidth - expBar->width - 10, *videoHeight - 10, *videoWidth - 10);
-        gfxSliceBlit(expBar, 10, 10, 50, 200);
+        gfxSliceBlit(slice, 100, 150, 300, 280);
+        gfxSliceBlit(slice, 400, 200, 410, 280);
+        gfxSliceBlit(slice, 50, 300, 320, 450);
+        //gfxSliceBlit(healthBar, 10, *videoHeight - healthBar->height - 10, 300, *videoHeight - 10);
+        //gfxSliceBlit(expBar, 10, *videoWidth - expBar->width - 10, *videoHeight - 10, *videoWidth - 10);
+        //gfxSliceBlit(expBar, 10, 10, 50, 200);
         //videoPopGLState();
 
         if(!appUpdate(current)) {
@@ -647,7 +657,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    gfxMeshDestroy(mesh);
+    gfxMeshDestroy2(mesh);
 
     return 0;
 }

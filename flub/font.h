@@ -60,13 +60,13 @@ void fontBlitQCStr(font_t *font, char *s);
 void fontBlitInt(font_t *font, int num);
 void fontBlitFloat(font_t *font, float num, int decimals);
 
-void fontBlitCMesh(gfxMeshObj_t *mesh, font_t *font, char c);
-void fontBlitStrMesh(gfxMeshObj_t *mesh, font_t *font, const char *s);
-void fontBlitStrNMesh(gfxMeshObj_t *mesh, font_t *font, char *s, int len);
-void fontBlitStrfMesh(gfxMeshObj_t *mesh, font_t *font, char *fmt, ...);
-void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s);
-void fontBlitIntMesh(gfxMeshObj_t *mesh, font_t *font, int num);
-void fontBlitFloatMesh(gfxMeshObj_t *mesh, font_t *font, float num, int decimals);
+void fontBlitCMesh(gfxMeshObj2_t *mesh, font_t *font, char c);
+void fontBlitStrMesh(gfxMeshObj2_t *mesh, font_t *font, const char *s);
+void fontBlitStrNMesh(gfxMeshObj2_t *mesh, font_t *font, char *s, int len);
+void fontBlitStrfMesh(gfxMeshObj2_t *mesh, font_t *font, char *fmt, ...);
+void fontBlitQCStrMesh(gfxMeshObj2_t *mesh, font_t *font, char *s);
+void fontBlitIntMesh(gfxMeshObj2_t *mesh, font_t *font, int num);
+void fontBlitFloatMesh(gfxMeshObj2_t *mesh, font_t *font, float num, int decimals);
 
 void fontMode(void);
 void fontPos(int x, int y);

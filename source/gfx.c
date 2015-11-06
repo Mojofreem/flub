@@ -27,23 +27,46 @@
 
 #define GFX_TRACE       1
 
+///////////////////////////////////////////////////////////////////////////////
+// Global context data structures
+///////////////////////////////////////////////////////////////////////////////
 
-struct gfxCtx_s {
+typedef struct _gfxMeshObjEntry_s {
+    gfxMeshObj_t meshObj;
+    struct _gfxMeshObjEntry_s *next;
+    struct _gfxMeshObjEntry_s *prev;
+    unsigned char buffer[0];
+} _gfxMeshObjEntry_t;
+
+struct _gfxCtx_s {
     int init;
-	const texture_t *flubMisc;
+	texture_t *flubMisc;
 	flubSlice_t *keycapSlice;
 	gfxEffect_t *activeEffects;
-    gfxMeshObj_t *meshList;
+    gfxMeshObj2_t *meshList;
+    _gfxMeshObjEntry_t *meshObjList;
+    float red;
+    float green;
+    float blue;
+    float alpha;
     GLuint simpleProgram;
-} gfxCtx = {
+} _gfxCtx = {
         .init = 0,
 		.flubMisc = NULL,
 		.keycapSlice = NULL,
 		.activeEffects = NULL,
         .meshList = NULL,
+        .meshObjList = NULL,
+        .red = 1.0,
+        .green = 1.0,
+        .blue = 1.0,
+        .alpha = 1.0,
         .simpleProgram = 0,
 	};
 
+///////////////////////////////////////////////////////////////////////////////
+// Key cap image support routines
+///////////////////////////////////////////////////////////////////////////////
 
 typedef struct specialKeyMap_s {
 	const char *name;
@@ -132,23 +155,33 @@ static int _gfxCalcKeycapCaptionQuads(const char *caption) {
 	return quads;
 }
 
-static void _gfxMeshReinit(gfxMeshObj_t *mesh);
+///////////////////////////////////////////////////////////////////////////////
+// Module initialization and global state handlers
+///////////////////////////////////////////////////////////////////////////////
+
+static void _gfxMeshReinit(gfxMeshObj2_t *mesh);
+static void _gfxMeshObjReinit(_gfxMeshObjEntry_t *mesh);
 
 static void _gfxVideoNotifieeCB(int width, int height, int fullscreen) {
-    gfxMeshObj_t *mesh;
+    gfxMeshObj2_t *mesh;
+    _gfxMeshObjEntry_t *walk;
     int k;
 
     debug(DBG_GFX, GFX_TRACE, "Rebinding VBO's...");
-    for(k = 0, mesh = gfxCtx.meshList; mesh != NULL; mesh = mesh->_gfx_mgr_next, k++) {
+    for(k = 0, mesh = _gfxCtx.meshList; mesh != NULL; mesh = mesh->_gfx_mgr_next, k++) {
         debugf(DBG_GFX, GFX_TRACE, "* VBO %d", k);
         _gfxMeshReinit(mesh);
+    }
+    for(k = 0, walk = _gfxCtx.meshObjList; walk != NULL; walk = walk->next, k++) {
+        debugf(DBG_GFX, GFX_TRACE, "* VBO %d", k);
+        _gfxMeshObjReinit(walk);
     }
 }
 
 int gfxInit(void) {
 	int k;
 
-    if(gfxCtx.init) {
+    if(_gfxCtx.init) {
         warning("Cannot initialize the gfx module multiple times.");
         return 1;
     }
@@ -171,13 +204,13 @@ int gfxInit(void) {
 		return 0;
 	}
 
-    gfxCtx.init = 1;
+    _gfxCtx.init = 1;
 
 	return 1;
 }
 
 void _gfxShutdown(void) {
-    if(!gfxCtx.init) {
+    if(!_gfxCtx.init) {
         return;
     }
 
@@ -185,18 +218,45 @@ void _gfxShutdown(void) {
 
     videoRemoveNotifiee(_gfxVideoNotifieeCB);
 
-    gfxCtx.init = 1;
+    _gfxCtx.init = 1;
 }
 
 int gfxStart(void) {
-	gfxCtx.flubMisc = texmgrGet("flub-keycap-misc");
-	gfxCtx.keycapSlice = gfxSliceCreate(gfxCtx.flubMisc, 41, 0, 46, 5, 52, 11, 57, 16);
-    gfxCtx.simpleProgram = videoGetProgram("simple");
-    infof("Program id is %d", gfxCtx.simpleProgram);
-
+	_gfxCtx.flubMisc = texmgrGet("flub-keycap-misc");
+	_gfxCtx.keycapSlice = gfxSliceCreate(_gfxCtx.flubMisc, 41, 0, 46, 5, 52, 11, 57, 16);
+    _gfxCtx.simpleProgram = videoGetProgram("simple");
 
     return 1;
 }
+
+void gfxColorSet(float red, float green, float blue) {
+    _gfxCtx.red = red;
+    _gfxCtx.green = green;
+    _gfxCtx.blue = blue;
+}
+
+void gfxAlphaSet(float alpha) {
+    _gfxCtx.alpha = alpha;
+}
+
+void gfxColorGet(float *red, float *green, float *blue, float *alpha) {
+    if(red != NULL) {
+        *red = _gfxCtx.red;
+    }
+    if(green != NULL) {
+        *green = _gfxCtx.green;
+    }
+    if(blue != NULL) {
+        *blue = _gfxCtx.blue;
+    }
+    if(alpha != NULL) {
+        *alpha = _gfxCtx.alpha;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// More key blitting stuff
+///////////////////////////////////////////////////////////////////////////////
 
 #define KEYCAP_HORZ_SPACER 5
 #define KEYCAP_VERT_SPACER 5
@@ -219,14 +279,14 @@ void gfxDrawKey(font_t *font, const char *caption, int x, int y, int *width, int
 	}
 
     fontSetColor(1.0, 1.0, 1.0);
-	gfxSliceBlit(gfxCtx.keycapSlice, x, y,
+	gfxSliceBlit(_gfxCtx.keycapSlice, x, y,
 				 x + keywidth,
 				 y + keyheight);
 	
 	fontMode();
 	fontSetColor(0.0, 0.0, 0.0);
 	if(idx >= 0) {
-		gfxTexBlitSub(gfxCtx.flubMisc,
+		gfxTexBlitSub(_gfxCtx.flubMisc,
 					  kx1, ky1, kx2, ky2,
 					  x + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER,
 					  (x + KEYCAP_HORZ_SPACER) + (kx2 - kx1),
@@ -274,7 +334,11 @@ void gfxKeyMetrics(font_t *font, const char *caption, int *width, int *height, i
     }
 }
 
-flubSprite_t *gfxSpriteCreate(const texture_t *texture, int width, int height) {
+///////////////////////////////////////////////////////////////////////////////
+// Sprite sheet support routines
+///////////////////////////////////////////////////////////////////////////////
+
+flubSprite_t *gfxSpriteCreate(texture_t *texture, int width, int height) {
 	flubSprite_t *sprite;
 
 	if(texture == NULL) {
@@ -302,6 +366,11 @@ void gfxSpriteDestroy(flubSprite_t *sprite) {
 	util_free(sprite);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// Slice support routines
+///////////////////////////////////////////////////////////////////////////////
+
+#if 0
 static int _sortFourValues(int *a, int *b, int *c, int *d) {
 	static const int max_idx = 4;
 	int *ptrs[4] = {a, b, c, d};
@@ -318,7 +387,7 @@ static int _sortFourValues(int *a, int *b, int *c, int *d) {
 			}
 		}
 	}
-#if 1
+
     // Shift specified widths to place zero width pairs at the end
     // Eight possible permutations, (- blank, + width):
     //  - - -
@@ -373,19 +442,7 @@ static int _sortFourValues(int *a, int *b, int *c, int *d) {
     }
     // + + +
     return 3;
-#else
-    return 0;
-#endif
-
 }
-
-/*
-typedef struct flubSlice_s {
-    const texture_t *textures[3][3];
-    int width;
-    int height;
-} flubSlice_t;
-*/
 
 flubSlice_t *gfxSliceCreate(const texture_t *texture,
                             int x1, int y1, int x2, int y2, int x3,
@@ -394,7 +451,6 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
     int x, y;
     int fail = 0;
 
-#if 1
     // Sort the coords values in ascending order, removing zero width gaps
     x = _sortFourValues(&x1, &x2, &x3, &x4);
     y = _sortFourValues(&y1, &y2, &y3, &y4);
@@ -429,9 +485,6 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
     }
 
     // Only 1x3, 3x1, or 3x3 makes it here (aligned left and top)
-#else
-#endif
-
     slice = util_calloc(sizeof(flubSlice_t), 0, NULL);
     slice->textures[0][0] = texmgrSubdivideTexture(texture, NULL, x1, y1, x2, y2, GL_NEAREST, GL_NEAREST);
     if(x2 != x3) {
@@ -456,17 +509,6 @@ flubSlice_t *gfxSliceCreate(const texture_t *texture,
     slice->width = ((x4 - x3) + (x3 - x2) + (x2 - x1));
     slice->height = ((y4 - y3) + (y3 - y2) + (y2 - y1));
 
-#if 1
-    for(y = 0; y < 3; y++) {
-        for(x = 0; x < 3; x++) {
-            if(slice->textures[y][x] == NULL) {
-                infof("Slice [%d][%d] = NULL", y, x);
-            } else {
-                infof("Slice [%d][%d] = %d [%dx%d]", y, x, slice->textures[y][x]->id, slice->textures[y][x]->width, slice->textures[y][x]->height);
-            }
-        }
-    }
-#endif
     return slice;
 }
 
@@ -489,7 +531,6 @@ flubSlice_t *gfx3x1SliceCreate(const texture_t *texture,
                                int x1, int y1, int x2, int y2, int x3, int x4) {
     return gfxSliceCreate(texture, x1, y1, x2, y2, x3, y2, x4, y2);
 }
-
 
 void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height) {
     int w = 0;
@@ -531,74 +572,344 @@ void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height) 
         *height = ch;
     }
 }
-
-
-
+#else
 #if 0
-flubSlice_t *gfxSliceCreate(const texture_t *texture,
+static int _sortFourValues(int *a, int *b, int *c, int *d) {
+    static const int max_idx = 4;
+    int *ptrs[4] = {a, b, c, d};
+    int swap;
+    int j, k;
+
+    // Swap the 4 values to arrange in ascending order
+    for(j = 0; j < (max_idx - 1); j++) {
+        for(k = j + 1; k < max_idx; k++) {
+            if(*(ptrs[k]) < *(ptrs[j])) {
+                swap = *(ptrs[k]);
+                *(ptrs[k]) = *(ptrs[j]);
+                *(ptrs[j]) = swap;
+            }
+        }
+    }
+
+    // Shift specified widths to place zero width pairs at the end
+    // Eight possible permutations, (- blank, + width):
+    //  - - -
+    //  - - +
+    //  - + -
+    //  - + +
+    //  + - +
+    //  + - -
+    //  + + -
+    //  + + +
+    //  The last 3 are in valid sort order
+
+    // - - -
+    // - - +
+    // - + -
+    // - + +
+    if(*(ptrs[0]) == *(ptrs[1])) { // -
+        if(*(ptrs[1]) == *(ptrs[2])) { // - -
+            if(*(ptrs[2]) == *(ptrs[3])) { // - - -
+                return 0;
+            } else { // - - +
+                *(ptrs[1]) = *(ptrs[3]);
+                *(ptrs[2]) = *(ptrs[1]);
+                return 1;
+            }
+        } else { // - +
+            if(*(ptrs[2]) == *(ptrs[3])) { // - + -
+                *(ptrs[1]) = *(ptrs[3]);
+                return 1;
+            } else { // - + +
+                *(ptrs[1]) = *(ptrs[2]);
+                *(ptrs[2]) = *(ptrs[3]);
+                return 2;
+            }
+        }
+    } else {
+        // + - +
+        if((*(ptrs[0]) != *(ptrs[1])) && (*(ptrs[1]) == *(ptrs[2])) && (*(ptrs[2]) != *(ptrs[3]))) {
+            *(ptrs[2]) = *(ptrs[3]);
+            return 2;
+        }
+    }
+
+    // + - -
+    // + + -
+    // + + +
+    if(*(ptrs[1]) == *(ptrs[2])) { // + - -
+        return 1;
+    }
+    if(*(ptrs[2]) == *(ptrs[3])) { // + + -
+        return 2;
+    }
+    // + + +
+    return 3;
+}
+
+flubSlice_t *gfxSliceCreate(texture_t *texture,
                             int x1, int y1, int x2, int y2, int x3,
                             int y3, int x4, int y4) {
     flubSlice_t *slice;
+    int x, y;
+    int fail = 0;
 
+    // Sort the coords values in ascending order, removing zero width gaps
+    x = _sortFourValues(&x1, &x2, &x3, &x4);
+    y = _sortFourValues(&y1, &y2, &y3, &y4);
+    if((x == 0) || (x == 2)) {
+        // Invalid width specifiers
+        fail = 1;
+    }
+    if((y == 0) || (y == 2)) {
+        // Invalid height specifiers
+        fail = 1;
+    }
+    if((x == 1) && (y == 1)) {
+        // No expanding sections
+        fail = 1;
+    }
+    if(fail) {
+        errorf("Invalid splice dimensions: (%d,%d)-(%d,%d)-(%d,%d)-(%d,%d) - %d:%d",
+               x1, y1, x2, y2, x3, y3, x4, y4, x, y);
+        return NULL;
+    }
+
+    if((x4 >= texture->width) || (y4 >= texture->height)) {
+        // The slice coords are larger than the texture
+        errorf("Slice coordinates are larger than texture size: (%d,%d) - %dx%d",
+               x4, y4, texture->width, texture->height);
+        return NULL;
+    }
+
+    if(!((x3 > x2) || (y3 > y2))) {
+        // This has no expanding sections, it's invalid
+        return NULL;
+    }
+
+    // Only 1x3, 3x1, or 3x3 makes it here (aligned left and top)
     slice = util_calloc(sizeof(flubSlice_t), 0, NULL);
-
-    _sortFourValues(&x1, &x2, &x3, &x4);
-    _sortFourValues(&y1, &y2, &y3, &y4);
-
     slice->texture = texture;
-    slice->xPre = x2 - x1 + 1;
-    slice->xPost = x4 - x3 + 1;
-    slice->yPre = y2 - y1 + 1;
-    slice->yPost = y4 - y3 + 1;
+    slice->coords[0][0] = SCALED_T_COORD(texture->width, x1);
+    slice->coords[0][1] = SCALED_T_COORD(texture->width, x2 - 1);
+    slice->coords[0][2] = SCALED_T_COORD(texture->width, x2);
+    slice->coords[0][3] = SCALED_T_COORD(texture->width, x3 - 1);
+    slice->coords[0][4] = SCALED_T_COORD(texture->width, x3);
+    slice->coords[0][5] = SCALED_T_COORD(texture->width, x4);
+    slice->coords[1][0] = SCALED_T_COORD(texture->height, y1);
+    slice->coords[1][1] = SCALED_T_COORD(texture->height, y2 -1);
+    slice->coords[1][2] = SCALED_T_COORD(texture->height, y2);
+    slice->coords[1][3] = SCALED_T_COORD(texture->height, y3 - 1);
+    slice->coords[1][4] = SCALED_T_COORD(texture->height, y3);
+    slice->coords[1][5] = SCALED_T_COORD(texture->height, y4);
 
-    slice->width = slice->xPre;
-    slice->height = slice->yPre;
-
-    if((x2 == x3) && (x3 == x4)) {
-        slice->locked |= GFX_X_LOCKED;
-    } else {
-        slice->width = slice->xPre + slice->xPost;
-    }
-    if((y2 == y3) && (y3 == y4)) {
-        slice->locked |= GFX_Y_LOCKED;
-    } else {
-        slice->height = slice->yPre + slice->yPost;
-    }
-
-    slice->tcoords[GFX_X_COORDS][0] = SCALED_T_COORD(texture->width, x1);
-    slice->tcoords[GFX_Y_COORDS][0] = SCALED_T_COORD(texture->height, y1);
-    slice->tcoords[GFX_X_COORDS][1] = SCALED_T_COORD(texture->width, x2);
-    slice->tcoords[GFX_Y_COORDS][1] = SCALED_T_COORD(texture->height, y2);
-    slice->tcoords[GFX_X_COORDS][2] = SCALED_T_COORD(texture->width, x3);
-    slice->tcoords[GFX_Y_COORDS][2] = SCALED_T_COORD(texture->height, y3);
-    slice->tcoords[GFX_X_COORDS][3] = SCALED_T_COORD(texture->width, x4);
-    slice->tcoords[GFX_Y_COORDS][3] = SCALED_T_COORD(texture->height, y4);
-
-    slice->quads = 1;
+    slice->sizes[0][0] = x2 - x1;
+    slice->sizes[1][0] = y2 - y1;
     if(x2 != x3) {
-        slice->quads++;
-    }
-    if(x3 != x4) {
-        slice->quads++;
+        slice->expanding[0] = x2;
+        slice->sizes[0][1] = x3 - x2;
+        slice->sizes[0][2] = x4 - x3 + 1;
+
     }
     if(y2 != y3) {
-        if(y3 != y4) {
-            slice->quads *= 3;
-        } else {
-            slice->quads *= 2;
-        }
-    } else if(y3 != y4) {
-        slice->quads *= 2;
+        slice->expanding[1] = y2;
+        slice->sizes[1][1] = y3 - y2;
+        slice->sizes[1][2] = y4 - y3 + 1;
     }
+
+    slice->width = slice->sizes[0][0] + slice->sizes[0][1] + slice->sizes[0][2];
+    slice->height = slice->sizes[1][0] + slice->sizes[1][1] + slice->sizes[1][2];
+
+    return slice;
+
+    return NULL;
+}
+#else
+
+#define GFX_SLICE_X 0
+#define GFX_SLICE_Y 1
+
+flubSlice_t *gfxSliceCreate(texture_t *texture,
+                            int x1, int y1, int x2, int y2, int x3,
+                            int y3, int x4, int y4) {
+    flubSlice_t *slice;
+    int width, height;
+    int x, y;
+    int fail = 0;
+
+    // Validate the input coordinates
+    if(((x1 > x2) || (x2 > x3) || (x3 > x4)) ||
+       ((y1 > y2) || (y2 > y3) || (y3 > y4)) ||
+       ((x2 == x3) && (x3 != x4)) ||
+       ((x3 == x4) && (x2 != x3)) ||
+       ((y2 == y3) && (y3 != y4)) ||
+       ((y3 == y4) && (y2 != y3)) ||
+       ((x1 == x2) || (y1 == y2)) ||
+       ((y2 == y3) && (x2 == x3)) ||
+       ((y2 == y3) && ((x2 == x3) || (x3 == x4))) ||
+       ((x2 == x3) && ((y2 == y3) || (y3 == y4)))) {
+        errorf("Invalid splice dimensions: (%d,%d)-(%d,%d)-(%d,%d)-(%d,%d)",
+               x1, y1, x2, y2, x3, y3, x4, y4);
+        return NULL;
+    }
+
+    if((x4 >= texture->width) || (y4 >= texture->height)) {
+        // The slice coords are larger than the texture
+        errorf("Slice coordinates are larger than texture size: (%d,%d) - %dx%d",
+               x4, y4, texture->width, texture->height);
+        return NULL;
+    }
+
+    // Only 1x3, 3x1, or 3x3 makes it here (aligned left and top)
+    slice = util_calloc(sizeof(flubSlice_t), 0, NULL);
+    slice->texture = texture;
+    slice->coords[GFX_SLICE_X][0] = SCALED_T_COORD(texture->width, x1);
+    slice->coords[GFX_SLICE_X][1] = SCALED_T_COORD(texture->width, x2 - 1);
+    slice->coords[GFX_SLICE_X][2] = SCALED_T_COORD(texture->width, x2);
+    slice->coords[GFX_SLICE_X][3] = SCALED_T_COORD(texture->width, x3 - 1);
+    slice->coords[GFX_SLICE_X][4] = SCALED_T_COORD(texture->width, x3);
+    slice->coords[GFX_SLICE_X][5] = SCALED_T_COORD(texture->width, x4);
+    slice->coords[GFX_SLICE_Y][0] = SCALED_T_COORD(texture->height, y1);
+    slice->coords[GFX_SLICE_Y][1] = SCALED_T_COORD(texture->height, y2 -1);
+    slice->coords[GFX_SLICE_Y][2] = SCALED_T_COORD(texture->height, y2);
+    slice->coords[GFX_SLICE_Y][3] = SCALED_T_COORD(texture->height, y3 - 1);
+    slice->coords[GFX_SLICE_Y][4] = SCALED_T_COORD(texture->height, y3);
+    slice->coords[GFX_SLICE_Y][5] = SCALED_T_COORD(texture->height, y4);
+
+    slice->sizes[GFX_SLICE_X][0] = x2 - x1;
+    slice->sizes[GFX_SLICE_Y][0] = y2 - y1;
+    if(x2 != x3) {
+        slice->expanding[GFX_SLICE_X] = x2;
+        slice->sizes[GFX_SLICE_X][1] = x3 - x2;
+        slice->sizes[GFX_SLICE_X][2] = x4 - x3 + 1;
+
+    }
+    if(y2 != y3) {
+        slice->expanding[GFX_SLICE_Y] = y2;
+        slice->sizes[GFX_SLICE_Y][1] = y3 - y2;
+        slice->sizes[GFX_SLICE_Y][2] = y4 - y3 + 1;
+    }
+
+    slice->width = slice->sizes[GFX_SLICE_X][0] + slice->sizes[GFX_SLICE_X][1] + slice->sizes[GFX_SLICE_X][2];
+    slice->height = slice->sizes[GFX_SLICE_Y][0] + slice->sizes[GFX_SLICE_Y][1] + slice->sizes[GFX_SLICE_Y][2];
 
     return slice;
 }
 
+#endif
+
 void gfxSliceDestroy(flubSlice_t *slice) {
-	util_free(slice);
+    util_free(slice);
+}
+
+flubSlice_t *gfx3x3SliceCreate(texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3,
+                               int y3, int x4, int y4) {
+    return gfxSliceCreate(texture, x1, y1, x2, y2, x3, y3, x4, y4);
+}
+
+flubSlice_t *gfx1x3SliceCreate(texture_t *texture,
+                               int x1, int y1, int x2, int y2, int y3, int y4) {
+    return gfxSliceCreate(texture, x1, y1, x2, y2, x2, y3, x2, y4);
+}
+
+flubSlice_t *gfx3x1SliceCreate(texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3, int x4) {
+    return gfxSliceCreate(texture, x1, y1, x2, y2, x3, y2, x4, y2);
+}
+
+void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height) {
+    int w = 0;
+    int h = 0;
+    int cw = 0;
+    int ch = 0;
+    int k;
+
+    if(width != NULL) {
+        w = *width;
+    }
+    if(height != NULL) {
+        h = *height;
+    }
+    cw = slice->sizes[0][0];
+    ch = slice->sizes[1][0];
+    if(slice->sizes[1][1] != 0) {
+        ch += slice->sizes[1][2];
+        do {
+            ch += slice->sizes[1][1];
+        } while(ch < h);
+    }
+    if(slice->sizes[0][1] != 0) {
+        cw += slice->sizes[0][2];
+        do {
+            cw += slice->sizes[0][1];
+        } while(cw < w);
+    }
+    if(width != NULL) {
+        *width = cw;
+    }
+    if(height != NULL) {
+        *height = ch;
+    }
 }
 
 #endif
+
+int gfxSliceCalcQuadCount(flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+    int quads = 1; // Top left
+    int columns = 0;
+    int rows = 0;
+    int w, h;
+
+    w = x2 - x1 + 1;
+    h = y2 - y1 + 1;
+
+    if((w < slice->width) ||
+       ((w > slice->width) && (slice->sizes[GFX_SLICE_X][1] == 0))) {
+        x2 = x1 + slice->width - 1;
+    }
+    if((h < slice->height) ||
+       ((h > slice->height) && (slice->sizes[GFX_SLICE_Y][1] == 0))) {
+        y2 = y1 + slice->height - 1;
+    }
+
+    w = x2 - x1 + 1;
+    h = y2 - y1 + 1;
+
+    if(slice->sizes[GFX_SLICE_X][1] != 0) {
+        w -= slice->sizes[GFX_SLICE_X][0];
+        w -= slice->sizes[GFX_SLICE_X][2];
+
+        columns = w / slice->sizes[GFX_SLICE_X][1];
+        if((w % slice->sizes[GFX_SLICE_X][1]) > 0) {
+            columns++;
+        }
+        quads++; // Top right
+        quads += columns; // Top center
+    }
+
+    if(slice->sizes[GFX_SLICE_Y][1] != 0) {
+        h -= slice->sizes[GFX_SLICE_Y][0];
+        h -= slice->sizes[GFX_SLICE_Y][2];
+
+        rows = h / slice->sizes[GFX_SLICE_Y][1];
+        if((h % slice->sizes[GFX_SLICE_Y][1]) > 0) {
+            rows++;
+        }
+        quads++; // Bottom left
+        quads += rows; // Middle left
+        if(slice->sizes[GFX_SLICE_X][1] != 0) {
+            quads += rows + columns + 1; // Bottom center, Middle right, Bottom right
+            quads += rows * columns; // Middle center
+        }
+    }
+
+    return quads;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// OpenGL clipping
+///////////////////////////////////////////////////////////////////////////////
 
 void gfx2dClipRegionSet(int x1, int y1, int x2, int y2) {
 	// TODO Validate the scissor clip logic
@@ -620,7 +931,980 @@ void gfx2dClipRegionClear(void) {
 // VBO Mesh Functions
 ///////////////////////////////////////////////////////////////////////////////
 
-static void _gfxMeshReinit(gfxMeshObj_t *mesh) {
+static void _gfxMeshObjReinit(_gfxMeshObjEntry_t *mesh) {
+    int count = 1;
+
+    if(mesh->meshObj.vboColors != NULL) {
+        count++;
+    }
+    if(mesh->meshObj.vboTexCoords != NULL) {
+        count++;
+    }
+    glGenBuffers(count, mesh->meshObj.vboId);
+    mesh->meshObj.dirty = 1;
+}
+
+static void _gfxMeshManagerAdd(_gfxMeshObjEntry_t *mesh) {
+    _gfxMeshObjEntry_t *walk, *last;
+
+    for(last = NULL, walk = _gfxCtx.meshObjList;
+        ((walk != NULL) && (walk != mesh));
+        last = walk, walk = walk->next);
+
+    if(walk == mesh) {
+        // It's already in the list!
+        return;
+    }
+    if(last != NULL) {
+        last->next = mesh;
+        mesh->prev = last;
+        mesh->next = NULL;
+    } else {
+        _gfxCtx.meshObjList = mesh;
+        mesh->prev = NULL;
+        mesh->next = NULL;
+    }
+}
+
+static void _gfxMeshManagerRemove(_gfxMeshObjEntry_t *mesh) {
+    if(mesh->prev == NULL) {
+        if(_gfxCtx.meshObjList == mesh) {
+            _gfxCtx.meshObjList = mesh->next;
+            if(mesh->next != NULL) {
+                mesh->next->prev = NULL;
+            }
+        }
+    } else {
+        mesh->prev->next = mesh->next;
+        if(mesh->next != NULL) {
+            mesh->next->prev = mesh->prev;
+        }
+    }
+    mesh->next = NULL;
+    mesh->prev = NULL;
+}
+
+gfxMeshObj_t *gfxMeshCreate(int vertexCount, GLenum primitive, int is2D, int isColor,
+                            texture_t *texture) {
+    _gfxMeshObjEntry_t *mesh;
+    int length;
+    size_t size = 0;
+    int colorPos;
+    int texturePos;
+    int bcount = 1;
+
+    if(is2D) {
+        size += sizeof(VBOVertexPos2D_t) * vertexCount;
+    } else {
+        size += sizeof(VBOVertexPos3D_t) * vertexCount;
+    }
+
+    if(isColor) {
+        colorPos = size;
+        size += sizeof(VBOColor_t) * vertexCount;
+    }
+    if(texture != NULL) {
+        texturePos = size;
+        size += sizeof(VBOTexCoord_t) * vertexCount;
+    }
+
+    mesh = util_alloc(sizeof(_gfxMeshObjEntry_t) + size, NULL);
+    memset(mesh, 0, sizeof(_gfxMeshObjEntry_t));
+    mesh->meshObj.program = _gfxCtx.simpleProgram;
+    mesh->meshObj.primitiveType = primitive;
+    mesh->meshObj.vertices = vertexCount;
+    mesh->meshObj.texture = texture;
+    mesh->meshObj.dirty = 1;
+    mesh->meshObj.is2d = is2D;
+    _gfxMeshManagerAdd(mesh);
+
+    if(isColor) {
+        bcount++;
+    }
+    if(texture != NULL) {
+        bcount++;
+    }
+    glGenBuffers(bcount, mesh->meshObj.vboId);
+    mesh->meshObj.vbo2DVertices = ((VBOVertexPos2D_t *)(mesh->buffer));
+    if(isColor) {
+        mesh->meshObj.vboColors = ((VBOColor_t *)(mesh->buffer + colorPos));
+    }
+    if(texture != NULL) {
+        mesh->meshObj.vboTexCoords = ((VBOTexCoord_t *)(mesh->buffer + texturePos));
+    }
+
+    return &(mesh->meshObj);
+}
+
+void gfxMeshDestroy(gfxMeshObj_t *mesh) {
+    _gfxMeshObjEntry_t *entry = (_gfxMeshObjEntry_t *)mesh;
+    int count = 1;
+
+    if(mesh == NULL) {
+        return;
+    }
+
+    _gfxMeshManagerRemove(entry);
+
+    if(mesh->next != NULL) {
+        errorf("Mesh object freed with active chain pointer.");
+        mesh->next->prev = NULL;
+    }
+
+    if(mesh->vboColors != NULL) {
+        count++;
+    }
+    if(mesh->vboTexCoords != NULL) {
+        count++;
+    }
+    glDeleteBuffersARB(count, mesh->vboId);
+    util_free(entry);
+}
+
+void gfxMeshClear(gfxMeshObj_t *mesh) {
+    if(mesh == NULL) {
+        return;
+    }
+    mesh->pos = 0;
+    mesh->dirty = 1;
+}
+
+void gfxMeshTextureAssign(gfxMeshObj_t *mesh, texture_t *texture) {
+    if(mesh == NULL) {
+        return;
+    }
+    mesh->texture = texture;
+}
+
+static gfxMeshObj_t *_gfxMeshChainFindHead(gfxMeshObj_t *mesh) {
+    while(mesh->prev != NULL) {
+        mesh = mesh->prev;
+    }
+    return mesh;
+}
+
+static gfxMeshObj_t *_gfxMeshChainFindTail(gfxMeshObj_t *mesh) {
+    while(mesh->next != NULL) {
+        mesh = mesh->next;
+    }
+    return mesh;
+}
+
+void gfxMeshPrependToChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh) {
+    gfxMeshObj_t *head, *tail;
+
+    if((mesh == NULL) || (chain == NULL)) {
+        return;
+    }
+
+    head = _gfxMeshChainFindHead(*chain);
+    tail = _gfxMeshChainFindTail(mesh);
+    tail->next = head;
+    head->prev = tail;
+    *chain = _gfxMeshChainFindHead(tail);
+}
+
+void gfxMeshAppendToChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh) {
+    gfxMeshObj_t *head, *tail;
+
+    if((mesh == NULL) || (chain == NULL)) {
+        return;
+    }
+
+    head = _gfxMeshChainFindHead(mesh);
+    tail = _gfxMeshChainFindTail(chain);
+    tail->next = head;
+    head->prev = tail;
+}
+
+void gfxMeshRemoveFromChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh) {
+    if(mesh == NULL) {
+        return;
+    }
+
+    if(mesh->prev != NULL) {
+        mesh->prev->next = mesh->next;
+    }
+    if(mesh->next != NULL) {
+        mesh->next->prev = mesh->prev;
+    }
+    if((chain != NULL) && (*chain == mesh)) {
+        *chain = mesh->next;
+    }
+}
+
+gfxMeshObj_t *gfxMeshFindMeshInChain(gfxMeshObj_t *mesh, texture_t *texture) {
+    gfxMeshObj_t *walk;
+
+    if(mesh == NULL) {
+        return NULL;
+    }
+
+    mesh = _gfxMeshChainFindHead(mesh);
+
+    for(walk = mesh; walk != NULL; walk = walk->next) {
+        if(walk->texture == texture) {
+            return walk;
+        }
+    }
+    return NULL;
+}
+
+void gfxMeshRender(gfxMeshObj_t *mesh) {
+    if(mesh == NULL) {
+        return;
+    }
+
+    glUseProgram(mesh->program);
+
+    if(mesh->vboTexCoords != NULL) {
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+
+    if(mesh->dirty) {
+        if(mesh->is2d) {
+            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos2D_t), mesh->vbo2DVertices, GL_DYNAMIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        } else {
+            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos3D_t), mesh->vbo3DVertices, GL_DYNAMIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+
+        if(mesh->vboTexCoords != NULL) {
+            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[((mesh->vboColors != NULL) ? 2 : 1)]);
+            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOTexCoord_t), mesh->vboTexCoords, GL_DYNAMIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+
+        if(mesh->vboColors != NULL) {
+            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
+            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOColor_t), mesh->vboColors, GL_DYNAMIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+
+        mesh->dirty = 0;
+    }
+
+    if(mesh->is2d) {
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+        glVertexPointer(2, GL_INT, 0, (void*)(0));
+    } else {
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+        glVertexPointer(3, GL_FLOAT, 0, (void*)(0));
+    }
+
+    if(mesh->vboTexCoords != NULL) {
+        glBindTexture(GL_TEXTURE_2D, mesh->texture->id);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[((mesh->vboColors != NULL) ? 2 : 1)]);
+        glTexCoordPointer(2, GL_FLOAT, 0, (void*)(0));
+    }
+
+    if(mesh->vboColors != NULL) {
+        glEnableClientState(GL_COLOR_ARRAY);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
+        glColorPointer(4, GL_FLOAT, 0, (void*)(0));
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glDrawArrays(mesh->primitiveType, 0, mesh->pos);
+
+    if(mesh->vboColors != NULL) {
+        glDisableClientState(GL_COLOR_ARRAY);
+    }
+    if(mesh->vboTexCoords != NULL) {
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    }
+    glDisableClientState(GL_VERTEX_ARRAY);
+
+    glUseProgram(0);
+
+    gfxMeshRender(mesh->next);
+}
+
+
+void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+                 float s1, float t1, float s2, float t2) {
+    gfxMeshQuadAtPos(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2, 0);
+}
+
+#define GFX_MESH_ADD_3DTRI_VERT(vp,tp,z1,x1,y1,s1,t1)    vp->x = x1; vp->y = y1; vp->z = z1; tp->s = s1; tp->t = t1; vp++; tp++
+#define GFX_MESH_ADD_3DTRIANGLE(vp,tp,z,x1,y1,x2,y2,x3,y3,s1,t1,s2,t2,s3,t3)    \
+        GFX_MESH_ADD_3DTRI_VERT(vp,tp,z,x1,y1,s1,t1); \
+        GFX_MESH_ADD_3DTRI_VERT(vp,tp,z,x2,y2,s2,t2); \
+        GFX_MESH_ADD_3DTRI_VERT(vp,tp,z,x3,y3,s3,t3)
+#define GFX_MESH_ADD_3DQUAD(vp,tp,z,x1,y1,x2,y2,s1,t1,s2,t2)    \
+        GFX_MESH_ADD_3DTRIANGLE(vp,tp,z,x1,y1,x2,y1,x1,y2,s1,t1,s2,t1,s1,t2);   \
+        GFX_MESH_ADD_3DTRIANGLE(vp,tp,z,x2,y1,x2,y2,x1,y2,s2,t1,s2,t2,s1,t2)
+
+#define GFX_MESH_ADD_2DTRI_VERT(vp,tp,x1,y1,s1,t1)    vp->x = x1; vp->y = y1; tp->s = s1; tp->t = t1; vp++; tp++
+#define GFX_MESH_ADD_2DTRIANGLE(vp,tp,x1,y1,x2,y2,x3,y3,s1,t1,s2,t2,s3,t3)    \
+        GFX_MESH_ADD_2DTRI_VERT(vp,tp,x1,y1,s1,t1); \
+        GFX_MESH_ADD_2DTRI_VERT(vp,tp,x2,y2,s2,t2); \
+        GFX_MESH_ADD_2DTRI_VERT(vp,tp,x3,y3,s3,t3)
+#define GFX_MESH_ADD_2DQUAD(vp,tp,x1,y1,x2,y2,s1,t1,s2,t2)    \
+        GFX_MESH_ADD_2DTRIANGLE(vp,tp,x1,y1,x2,y1,x1,y2,s1,t1,s2,t1,s1,t2);   \
+        GFX_MESH_ADD_2DTRIANGLE(vp,tp,x2,y1,x2,y2,x1,y2,s2,t1,s2,t2,s1,t2)
+
+#define GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z1,x1,y1)    vp->x = x1; vp->y = y1; vp->z = z1; vp++
+#define GFX_MESH_ADD_3DTRIANGLE_NOTEX(vp,z,x1,y1,x2,y2,x3,y3)    \
+        GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z,x1,y1); \
+        GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z,x2,y2); \
+        GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z,x3,y3)
+#define GFX_MESH_ADD_3DQUAD_NOTEX(vp,z,x1,y1,x2,y2)    \
+        GFX_MESH_ADD_3DTRIANGLE_NOTEX(vp,z,x1,y1,x2,y1,x1,y2);   \
+        GFX_MESH_ADD_3DTRIANGLE_NOTEX(vp,z,x2,y1,x2,y2,x1,y2)
+
+#define GFX_MESH_ADD_2DTRI_VERT_NOTEX(vp,x1,y1)    vp->x = x1; vp->y = y1; vp++
+#define GFX_MESH_ADD_2DTRIANGLE_NOTEX(vp,x1,y1,x2,y2,x3,y3)    \
+        GFX_MESH_ADD_2DTRI_VERT_NOTEX(vp,x1,y1); \
+        GFX_MESH_ADD_2DTRI_VERT_NOTEX(vp,x2,y2); \
+        GFX_MESH_ADD_2DTRI_VERT_NOTEX(vp,x3,y3)
+#define GFX_MESH_ADD_2DQUAD_NOTEX(vp,x1,y1,x2,y2)    \
+        GFX_MESH_ADD_2DTRIANGLE_NOTEX(vp,x1,y1,x2,y1,x1,y2);   \
+        GFX_MESH_ADD_2DTRIANGLE_NOTEX(vp,x2,y1,x2,y2,x1,y2)
+
+#define GFX_VBO_DEFAULT_Z   1
+
+void gfxMeshQuadAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                      int x1, int y1, int x2, int y2,
+                      float s1, float t1, float s2, float t2,
+                      int skipColor) {
+    int k;
+    VBOColor_t *color;
+    VBOVertexPos2D_t *vertex2D;
+    VBOVertexPos3D_t *vertex3D;
+    VBOTexCoord_t *texture;
+
+    if(!skipColor) {
+        if(mesh->vboColors != NULL) {
+            color = mesh->vboColors + pos;
+            for(k = 0; k < 6; k++) {
+                color->r = _gfxCtx.red;
+                color->g = _gfxCtx.green;
+                color->b = _gfxCtx.blue;
+                color->a = _gfxCtx.alpha;
+                color++;
+            }
+        }
+    }
+
+    if(mesh->vboTexCoords != NULL) {
+        texture = mesh->vboTexCoords + pos;
+        if(mesh->is2d) {
+            vertex2D = mesh->vbo2DVertices + pos;
+            GFX_MESH_ADD_2DQUAD(vertex2D,
+                                texture,
+                                x1, y1, x2, y2, s1, t1, s2, t2);
+        } else {
+            vertex3D = mesh->vbo3DVertices + pos;
+            GFX_MESH_ADD_3DQUAD(vertex3D, texture, GFX_VBO_DEFAULT_Z,
+                                x1, y1, x2, y2, s1, t1, s2, t2);
+        }
+    } else {
+        if(mesh->is2d) {
+            vertex2D = mesh->vbo2DVertices + pos;
+            GFX_MESH_ADD_2DQUAD_NOTEX(vertex2D, x1, y1, x2, y2);
+        } else {
+            vertex3D = mesh->vbo3DVertices + pos;
+            GFX_MESH_ADD_3DQUAD_NOTEX(vertex3D, GFX_VBO_DEFAULT_Z, x1, y1, x2, y2);
+        }
+    }
+
+    if(last != NULL) {
+        *last = pos + 6;
+    }
+
+    mesh->dirty = 1;
+}
+
+void gfxMeshQuadColor(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+                      float s1, float t1, float s2, float t2,
+                      float red, float green, float blue, float alpha) {
+    gfxMeshQuadColorAtPos(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2,
+                          s1, t1, s2, t2, red, green, blue, alpha);
+}
+
+void gfxMeshQuadColorAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                           int x1, int y1, int x2, int y2,
+                           float s1, float t1, float s2, float t2,
+                           float red, float green, float blue, float alpha) {
+    int k;
+    VBOColor_t *color;
+    VBOVertexPos2D_t *vertex;
+    VBOTexCoord_t *texture;
+
+    if(mesh->vboColors != NULL) {
+        color = mesh->vboColors + pos;
+        for(k = 0; k < 6; k++) {
+            color->r = red;
+            color->g = green;
+            color->b = blue;
+            color->a = alpha;
+            color++;
+        }
+    }
+
+    gfxMeshQuadAtPos(mesh, pos, last, x1, y1, x2, y2, s1, t1, s2, t2, 1);
+}
+
+int gfxTexMeshBlit(gfxMeshObj_t *mesh, texture_t *texture, int x1, int y1) {
+    gfxMeshObj_t *target;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+        return 0;
+    }
+
+    if((target->pos + MESH_QUAD_SIZE(1)) >= target->vertices) {
+        return 0;
+    }
+
+    gfxTexMeshBlitSubAtPos(target, target->pos, &(target->pos), texture, 0, 0,
+                           texture->width - 1, texture->height - 1,
+                           x1, y1, x1 + texture->width, y1 + texture->height);
+
+    return 1;
+}
+
+void gfxTexMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                         texture_t *texture, int x1, int y1) {
+    gfxTexMeshBlitSubAtPos(mesh, pos, last, texture, 0, 0,
+                           texture->width - 1, texture->height - 1,
+                           x1, y1, x1 + texture->width - 1, y1 + texture->height - 1);
+}
+
+int gfxTexMeshBlitSub(gfxMeshObj_t *mesh, texture_t *texture,
+                      int tx1, int ty1, int tx2, int ty2,
+                      int x1, int y1, int x2, int y2) {
+    gfxMeshObj_t *target;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+        return 0;
+    }
+
+    if((target->pos + MESH_QUAD_SIZE(1)) >= target->vertices) {
+        return 0;
+    }
+
+    gfxTexMeshBlitSubAtPos(target, target->pos, &(target->pos), texture,
+                           tx1, ty1, tx2, ty2, x1, y1, x2, y2);
+
+    return 1;
+}
+
+void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                            texture_t *texture, int tx1, int ty1,
+                            int tx2, int ty2, int x1, int y1, int x2, int y2) {
+    gfxMeshObj_t *target;
+    float u1, v1, u2, v2;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+        return;
+    }
+
+    u1 = SCALED_T_COORD(texture->width, tx1);
+    v1 = SCALED_T_COORD(texture->height, ty1);
+    u2 = SCALED_T_COORD(texture->width, tx2);
+    v2 = SCALED_T_COORD(texture->height, ty2);
+
+    gfxMeshQuadAtPos(target, pos, last, x1, y1, x2, y2, u1, v1, u2, v2, 0);
+}
+
+int gfxTexMeshTile(gfxMeshObj_t *mesh, texture_t *texture,
+                   int tx1, int ty1, int tx2, int ty2,
+                   int x1, int y1, int x2, int y2) {
+    gfxMeshObj_t *target;
+    int rows;
+    int columns;
+    int width = x2 - x1;
+    int height = y2 - y1;
+    int tileWidth = tx2 + 1 - tx1;
+    int tileHeight = ty2 + 1 - ty1;
+    int quads;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+        return 0;
+    }
+
+    columns = (width / tileWidth) + ((width % tileWidth) ? 1 : 0);
+    rows = (height / tileHeight) + ((height % tileHeight) ? 1 : 0);
+    quads = columns * rows;
+
+    if((target->pos + MESH_QUAD_SIZE(quads)) >= target->vertices) {
+        return 0;
+    }
+
+    gfxTexMeshTileAtPos(target, target->pos, &(target->pos), texture,
+                        tx1, ty1, tx2, ty2, x1, y1, x2, y2);
+
+    return 1;
+}
+
+void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                         texture_t *texture, int tx1, int ty1,
+                         int tx2, int ty2, int x1, int y1, int x2, int y2) {
+    tx2++;
+    ty2++;
+
+    gfxMeshObj_t *target;
+    int width = (x2 - x1 + 1);
+    int height = (y2 - y1 + 1);
+    int tileWidth = (tx2 - tx1 + 1);
+    int tileHeight = (ty2 - ty1 + 1);
+    int progressWidth = 0;
+    int progressHeight = 0;
+    float u1, v1, u2, v2;
+    int a1, b1, a2, b2;
+    int adj;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+        return;
+    }
+
+    u1 = SCALED_T_COORD(texture->width, tx1);
+    v1 = SCALED_T_COORD(texture->height, ty1);
+
+    while((progressHeight < height) || (progressWidth < width)) {
+        for(; progressHeight < height; progressHeight += tileHeight) {
+            for(progressWidth = 0; progressWidth < width; progressWidth += tileWidth) {
+                a1 = x1 + progressWidth;
+                if((width - progressWidth) <= tileWidth) {
+                    // This fragment is only partial width
+                    a2 = x2;
+                    adj = tx1 + (a2 - a1) - 1;
+                    u2 = SCALED_T_COORD(texture->width, adj);
+                } else {
+                    a2 = a1 + tileWidth;
+                    u2 = SCALED_T_COORD(texture->width, tx2);
+                }
+                b1 = y1 + progressHeight;
+                if((height - progressHeight) <= tileHeight) {
+                    // This fragment is only partial height
+                    b2 = y2;
+                    adj = ty1 + (b2 - b1) - 1;
+                    v2 = SCALED_T_COORD(texture->height, adj);
+                } else {
+                    b2 = b1 + tileHeight;
+                    v2 = SCALED_T_COORD(texture->height, ty2);
+                }
+
+                gfxMeshQuadAtPos(target, pos, last, a1, b1, a2, b2, u1, v1, u2, v2, 0);
+                pos += 6;
+            }
+        }
+    }
+}
+
+int gfxSpriteMeshBlit(gfxMeshObj_t *mesh, flubSprite_t *sprite, int num,
+                      int x, int y) {
+    gfxMeshObj_t *target;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+        return 0;
+    }
+
+    if((target->pos + MESH_QUAD_SIZE(1)) >= target->vertices) {
+        return 0;
+    }
+
+    gfxSpriteMeshBlitAtPos(target, target->pos, &(target->pos), sprite, num, x, y);
+
+    return 1;
+}
+
+void gfxSpriteMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                            flubSprite_t *sprite, int num, int x, int y) {
+    gfxMeshObj_t *target;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+        return;
+    }
+
+    int row = num / sprite->spritesPerRow;
+    int column = num % sprite->spritesPerRow;
+    int tx1, ty1, tx2, ty2;
+
+    tx1 = column * sprite->width;
+    tx2 = tx1 + sprite->width - 1;
+    ty1 = row * sprite->height;
+    ty2 = ty1 + sprite->height - 1;
+
+    gfxTexMeshBlitSubAtPos(target, pos, last, sprite->texture,
+                           tx1, ty1, tx2, ty2, x, y,
+                           x + sprite->width, y + sprite->height);
+}
+
+int gfxSpriteMeshBlitResize(gfxMeshObj_t *mesh, flubSprite_t *sprite,
+                            int num, int x1, int y1, int x2, int y2) {
+    gfxMeshObj_t *target;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+        return 0;
+    }
+
+    if((target->pos + MESH_QUAD_SIZE(1)) >= target->vertices) {
+        return 0;
+    }
+
+    gfxSpriteMeshBlitResizeAtPos(target, target->pos, &(target->pos), sprite, num,
+                                 x1, y1, x2, y2);
+
+    return 1;
+}
+
+void gfxSpriteMeshBlitResizeAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                                  flubSprite_t *sprite, int num,
+                                  int x1, int y1, int x2, int y2) {
+    gfxMeshObj_t *target;
+    int row = num / sprite->spritesPerRow;
+    int column = num % sprite->spritesPerRow;
+    int tx1, ty1, tx2, ty2;
+
+    if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+        return;
+    }
+
+    tx1 = column * sprite->width;
+    tx2 = tx1 + sprite->width;
+    ty1 = row * sprite->height;
+    ty2 = ty1 + sprite->height;
+
+    gfxTexMeshBlitSubAtPos(target, pos, last, sprite->texture,
+                           tx1, ty1, tx2, ty2, x1, y1, x2, y2);
+}
+
+int gfxSliceMeshBlit(gfxMeshObj_t *mesh, flubSlice_t *slice,
+                     int x1, int y1, int x2, int y2) {
+#if 0
+    gfxMeshObj_t *target;
+
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, slice->texture)) == NULL)) {
+		return 0;
+	}
+
+	if((target->pos + MESH_QUAD_SIZE(slice->quads)) >= target->length) {
+		return 0;
+	}
+
+	gfxSliceMeshBlitAtPos(target, target->pos, &(target->pos), slice,
+						  x1, y1, x2, y2);
+#endif
+    return 1;
+}
+
+void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                           const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+#if 0
+    gfxMeshObj2_t *target;
+	int ref, dim[2][6], x, y;
+
+
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, slice->texture)) == NULL)) {
+		return;
+	}
+
+	if(slice->texture->id == 0) {
+		return;
+	}
+
+	if(slice->locked & GFX_X_LOCKED) {
+		x2 = x1 + slice->width;
+	} else if((x2 - x1) < slice->width) {
+		x2 += slice->width - ( x2 - x1 );
+	} if(slice->locked & GFX_Y_LOCKED) {
+		y2 = y1 + slice->width;
+	} else if((y2 - y1) < slice->height) {
+		y2 += slice->height - (y2 - y1);
+	}
+
+	dim[GFX_X_COORDS][0] = x1;
+	dim[GFX_Y_COORDS][0] = y1;
+	dim[GFX_X_COORDS][1] = x1 + slice->xPre;
+	dim[GFX_Y_COORDS][1] = y1 + slice->yPre;
+	dim[GFX_X_COORDS][2] = x2 - slice->xPost;
+	dim[GFX_Y_COORDS][2] = y2 - slice->yPost;
+	dim[GFX_X_COORDS][3] = x2;
+	dim[GFX_Y_COORDS][3] = y2;
+
+	for(y = 0; y < 3; y++) {
+		if((y > 0) && (slice->tcoords[GFX_Y_COORDS][y] == slice->tcoords[GFX_Y_COORDS][y - 1])) {
+			continue;
+		}
+		for(x = 0; x < 3; x++) {
+			if((x > 0) && (slice->tcoords[GFX_X_COORDS][x] == slice->tcoords[GFX_X_COORDS][x - 1])) {
+				continue;
+			}
+			gfxMeshQuadAtPos(target, pos, last,
+							 dim[GFX_X_COORDS][x], dim[GFX_Y_COORDS][y],
+							 dim[GFX_X_COORDS][x + 1], dim[GFX_Y_COORDS][ y + 1],
+							 slice->tcoords[GFX_X_COORDS][x], slice->tcoords[GFX_Y_COORDS][y],
+							 slice->tcoords[GFX_X_COORDS][x + 1], slice->tcoords[GFX_Y_COORDS][y + 1]);
+			pos += 6;
+			if((x == 0) && (slice->locked & GFX_Y_LOCKED)) {
+				break;
+			}
+		}
+		if(slice->locked & GFX_X_LOCKED) {
+			break;
+		}
+	}
+#endif
+}
+
+int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
+                      int x, int y, int *width, int *height) {
+#if 0
+    int keyheight;
+    int keywidth;
+    int key = -1;
+    int size;
+    int idx;
+    int kx1, ky1, kx2, ky2;
+    gfxMeshObj2_t *keyTarget, *fontTarget;
+
+    if(mesh == NULL) {
+        return 0;
+    }
+    if((keyTarget = gfxMeshFindMeshInChain2(mesh, _gfxCtx.flubMisc)) == NULL) {
+        return 0;
+    }
+    if((fontTarget = gfxMeshFindMeshInChain2(mesh, fontTextureGet(font))) == NULL) {
+        return 0;
+    }
+
+    if(_gfxIsSpecialKey(caption)) {
+        if((keyTarget->pos + MESH_QUAD_SIZE(10)) >= keyTarget->length) {
+            return 0;
+        }
+    } else {
+        if((keyTarget->pos + MESH_QUAD_SIZE(9)) >= keyTarget->length) {
+            return 0;
+        }
+        if((fontTarget->pos + MESH_QUAD_SIZE(_gfxCalcKeycapCaptionQuads(caption))) >= fontTarget->length) {
+            return 0;
+        }
+
+    }
+
+    if((fontTarget->pos + MESH_QUAD_SIZE(9)) >= fontTarget->length) {
+        return 0;
+    }
+
+    keyheight = fontGetHeight(font) + KEYCAP_VERT_SPACER + KEYCAP_VERT_SPACER;
+
+    if((idx = _gfxIsSpecialKey(caption)) >= 0) {
+        _gfxSpecialKeyCoords(idx, fontGetHeight(font), &kx1, &ky1, &kx2, &ky2);
+        keywidth = kx2 - kx1 + KEYCAP_HORZ_SPACER + KEYCAP_HORZ_SPACER;
+    } else {
+        keywidth = fontGetStrWidth(font, caption) + KEYCAP_HORZ_SPACER + KEYCAP_HORZ_SPACER;
+    }
+
+    gfxMeshDefaultColor2(keyTarget, 1.0, 1.0, 1.0, 1.0);
+    gfxSliceMeshBlit2(keyTarget, _gfxCtx.keycapSlice, x, y, x + keywidth, y + keyheight);
+
+    if(idx >= 0) {
+        gfxMeshDefaultColor2(keyTarget, 0.0, 0.0, 0.0, 1.0);
+        gfxTexMeshBlitSub2(keyTarget, _gfxCtx.flubMisc,
+                           kx1, ky1, kx2, ky2,
+                           x + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER,
+                           x + kx2 - kx1 + KEYCAP_HORZ_SPACER,
+                           y + ky2 - ky1 + KEYCAP_VERT_SPACER);
+    } else {
+        gfxMeshDefaultColor2(fontTarget, 0.0, 0.0, 0.0, 1.0);
+        fontSetColor(0.0, 0.0, 0.0);
+        fontPos(x + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER + 2);
+        fontBlitStrMesh(fontTarget, font, caption);
+    }
+
+    if(width != NULL) {
+        *width = keywidth;
+    }
+    if(height != NULL) {
+        *height = keyheight;
+    }
+#endif
+    return 1;
+}
+
+void gfxMeshRangeAlphaSet(gfxMeshObj_t *mesh, int start, int end, float alpha) {
+    int k;
+    VBOColor_t *color;
+
+    if((mesh == NULL) || (mesh->vboColors == NULL)) {
+        return;
+    }
+    if(start > mesh->pos) {
+        return;
+    }
+
+    if(end > mesh->pos) {
+        end = mesh->pos;
+    }
+
+    color = mesh->vboColors + start;
+    for(k = start; k <= end; k++) {
+        color->a = alpha;
+        color++;
+    }
+    mesh->dirty = 1;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void _gfxMeshReinit(gfxMeshObj2_t *mesh) {
     if(mesh->flags & GFX_MESH_FLAG_COLOR) {
         glGenBuffers(3, mesh->vboId);
     } else {
@@ -629,11 +1913,11 @@ static void _gfxMeshReinit(gfxMeshObj_t *mesh) {
     mesh->dirty = 1;
 }
 
-gfxMeshObj_t *gfxMeshCreate(int triCount, int flags, const texture_t *texture) {
-	gfxMeshObj_t *mesh;
+gfxMeshObj2_t *gfxMeshCreate2(int triCount, int flags, const texture_t *texture) {
+	gfxMeshObj2_t *mesh;
 
-	mesh = util_alloc(sizeof(gfxMeshObj_t), NULL);
-	memset(mesh, 0, sizeof(gfxMeshObj_t));
+	mesh = util_alloc(sizeof(gfxMeshObj2_t), NULL);
+	memset(mesh, 0, sizeof(gfxMeshObj2_t));
 	mesh->flags = flags;
 	mesh->length = MESH_TRIANGLE_SIZE(triCount);
 	mesh->dirty = 1;
@@ -642,7 +1926,7 @@ gfxMeshObj_t *gfxMeshCreate(int triCount, int flags, const texture_t *texture) {
 	mesh->green = 1.0;
 	mesh->blue = 1.0;
 	mesh->alpha = 1.0;
-    mesh->program = gfxCtx.simpleProgram;
+    mesh->program = _gfxCtx.simpleProgram;
 
 	if(flags & GFX_MESH_FLAG_COLOR) {
 		glGenBuffers(3, mesh->vboId);
@@ -654,29 +1938,29 @@ gfxMeshObj_t *gfxMeshCreate(int triCount, int flags, const texture_t *texture) {
 	mesh->vboVertices = util_alloc((mesh->length * sizeof(VBOVertexPos2D_t)), NULL);
 	mesh->vboTexCoords = util_alloc((mesh->length * sizeof(VBOTexCoord_t)), NULL);
 
-    if(gfxCtx.meshList == NULL) {
-        gfxCtx.meshList = mesh;
+    if(_gfxCtx.meshList == NULL) {
+        _gfxCtx.meshList = mesh;
     } else {
-        mesh->_gfx_mgr_next = gfxCtx.meshList;
+        mesh->_gfx_mgr_next = _gfxCtx.meshList;
         if(mesh->_gfx_mgr_next != NULL) {
             mesh->_gfx_mgr_next->_gfx_mgr_prev = mesh;
         }
         mesh->_gfx_mgr_prev = NULL;
-        gfxCtx.meshList = mesh;
+        _gfxCtx.meshList = mesh;
     }
 
 	return mesh;
 }
 
-void gfxMeshDestroy(gfxMeshObj_t *mesh) {
+void gfxMeshDestroy2(gfxMeshObj2_t *mesh) {
 	if(mesh == NULL) {
 		return;
 	}
 
     if(mesh->_gfx_mgr_prev == NULL) {
-        gfxCtx.meshList = mesh->_gfx_mgr_next;
-        if(gfxCtx.meshList != NULL) {
-            gfxCtx.meshList->_gfx_mgr_prev = NULL;
+        _gfxCtx.meshList = mesh->_gfx_mgr_next;
+        if(_gfxCtx.meshList != NULL) {
+            _gfxCtx.meshList->_gfx_mgr_prev = NULL;
         }
     } else {
         mesh->_gfx_mgr_prev->_gfx_mgr_next = mesh->_gfx_mgr_next;
@@ -698,12 +1982,12 @@ void gfxMeshDestroy(gfxMeshObj_t *mesh) {
 	util_free(mesh->vboTexCoords);
 }
 
-void gfxMeshInitCBSet(gfxMeshObj_t *mesh, gfxMeshInitCB_t initCB, void *context) {
+void gfxMeshInitCBSet(gfxMeshObj2_t *mesh, gfxMeshInitCB_t initCB, void *context) {
 	mesh->initCB = initCB;
 	mesh->context = context;
 }
 
-void gfxMeshClear(gfxMeshObj_t *mesh) {
+void gfxMeshClear2(gfxMeshObj2_t *mesh) {
 	if(mesh == NULL) {
 		return;
 	}
@@ -711,14 +1995,14 @@ void gfxMeshClear(gfxMeshObj_t *mesh) {
 	mesh->dirty = 1;
 }
 
-void gfxMeshTextureAssign(gfxMeshObj_t *mesh, const texture_t *texture) {
+void gfxMeshTextureAssign2(gfxMeshObj2_t *mesh, const texture_t *texture) {
 	if(mesh == NULL) {
 		return;
 	}
 	mesh->texture = texture;
 }
 
-void gfxMeshDefaultColor(gfxMeshObj_t *mesh, float red, float green,
+void gfxMeshDefaultColor2(gfxMeshObj2_t *mesh, float red, float green,
 						 float blue, float alpha) {
 	if(mesh == NULL) {
 		return;
@@ -729,8 +2013,8 @@ void gfxMeshDefaultColor(gfxMeshObj_t *mesh, float red, float green,
 	mesh->alpha = alpha;
 }
 
-void gfxMeshPrependToChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh) {
-	gfxMeshObj_t *walk;
+void gfxMeshPrependToChain2(gfxMeshObj2_t **chain, gfxMeshObj2_t *mesh) {
+	gfxMeshObj2_t *walk;
 
 	if((mesh == NULL) || (chain == NULL)) {
 		return;
@@ -740,8 +2024,8 @@ void gfxMeshPrependToChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh) {
 	*chain = mesh;
 }
 
-void gfxMeshAppendToChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh) {
-	gfxMeshObj_t *walk;
+void gfxMeshAppendToChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh) {
+	gfxMeshObj2_t *walk;
 
 	if((mesh == NULL) || (chain == NULL)) {
 		return;
@@ -753,8 +2037,8 @@ void gfxMeshAppendToChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh) {
 	mesh->prev = walk;
 }
 
-void gfxMeshRemoveFromChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh) {
-	gfxMeshObj_t *walk, *last = NULL;
+void gfxMeshRemoveFromChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh) {
+	gfxMeshObj2_t *walk, *last = NULL;
 
 	if(mesh == NULL) {
 		return;
@@ -777,8 +2061,8 @@ void gfxMeshRemoveFromChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh) {
 	warning("Cannot free mesh from chain it is not a member of.");
 }
 
-gfxMeshObj_t *gfxMeshFindMeshInChain(gfxMeshObj_t *mesh, const texture_t *texture) {
-	gfxMeshObj_t *walk;
+gfxMeshObj2_t *gfxMeshFindMeshInChain2(gfxMeshObj2_t *mesh, const texture_t *texture) {
+	gfxMeshObj2_t *walk;
 
 	if(mesh == NULL) {
 		return NULL;
@@ -792,12 +2076,12 @@ gfxMeshObj_t *gfxMeshFindMeshInChain(gfxMeshObj_t *mesh, const texture_t *textur
 	return NULL;
 }
 
-void gfxMeshRender(gfxMeshObj_t *mesh) {
+void gfxMeshRender2(gfxMeshObj2_t *mesh) {
 	if(mesh == NULL) {
 		return;
 	}
 
-	gfxMeshRender(mesh->next);
+	gfxMeshRender2(mesh->next);
 
 	if(mesh->initCB != NULL) {
 		mesh->initCB(mesh->context);
@@ -857,12 +2141,12 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
 }
 
 
-void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+void gfxMeshQuad2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
 			     float s1, float t1, float s2, float t2) {
-	gfxMeshQuadAtPos(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2);
+	gfxMeshQuadAtPos2(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2);
 }
 
-void gfxMeshQuadAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxMeshQuadAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 				 	  int x1, int y1, int x2, int y2,
 			     	  float s1, float t1, float s2, float t2) {
 	int k;
@@ -937,14 +2221,14 @@ void gfxMeshQuadAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 	mesh->dirty = 1;
 }
 
-void gfxMeshQuadColor(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+void gfxMeshQuadColor2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
 					  float s1, float t1, float s2, float t2,
 					  float red, float green, float blue, float alpha) {
-	gfxMeshQuadColorAtPos(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2,
+	gfxMeshQuadColorAtPos2(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2,
 						  s1, t1, s2, t2, red, green, blue, alpha);
 }
 
-void gfxMeshQuadColorAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxMeshQuadColorAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						   int x1, int y1, int x2, int y2,
 						   float s1, float t1, float s2, float t2,
 						   float red, float green, float blue, float alpha) {
@@ -1150,6 +2434,7 @@ void gfxSpriteBlitResize(const flubSprite_t *sprite, int num, int x1, int y1,
 	gfxTexBlitSub(sprite->texture, tx1, ty1, tx2, ty2, x1, y1, x2, y2);
 }
 
+#if 0
 static void _sliceDrawSegment(texture_t *tex, int x1, int y1, int x2, int y2, float w, float h) {
     glBindTexture(GL_TEXTURE_2D, tex->id);
     glBegin( GL_QUADS );
@@ -1249,6 +2534,656 @@ void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
                           1.0, 1.0);
     }
 }
+#else
+
+static void _sliceDrawSegment(texture_t *tex, int x1, int y1, int x2, int y2,
+                              float s1, float t1, float s2, float t2) {
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBegin( GL_QUADS );
+    glTexCoord2f(s1, t1);
+    glVertex2i(x1, y1);
+    glTexCoord2f(s2, t1);
+    glVertex2i(x2, y1);
+    glTexCoord2f(s2, t2);
+    glVertex2i(x2, y2);
+    glTexCoord2f(s1, t2);
+    glVertex2i(x1, y2);
+    glEnd();
+}
+
+struct _quadPiece_s {
+    int x1, y1, x2, y2;
+    float s1, t1, s2, t2;
+};
+
+int _DUMP_FLAG = 1;
+
+static void _gfxPrintPiece(struct _quadPiece_s *piece) {
+    if(_DUMP_FLAG) {
+        infof("Piece: (%d,%d)-(%d,%d)", piece->x1, piece->y1, piece->x2, piece->y2);
+    }
+}
+
+void _gfxMark(const char *msg) {
+    if(_DUMP_FLAG) {
+        infof("%s", msg);
+    }
+}
+
+#define GFX_SET_PIECES(p,idx,_x1,_y1,_x2,_y2,_s1,_t1,_s2,_t2)   \
+        p[idx].x1 = _x1; p[idx].y1 = _y1; p[idx].x2 = _x2; p[idx].y2 = _y2; \
+        p[idx].s1 = _s1; p[idx].t1 = _t1; p[idx].s2 = _s2; p[idx].t2 = _t2;
+
+static int _gfxSliceCalcQuads(const flubSlice_t *slice,
+                              int x1, int y1, int *_x2, int *_y2,
+                              struct _quadPiece_s pieces[9],
+                              int *xMultiples, int *yMultiples,
+                              float *xTexPos, float *yTexPos,
+                              int *xOffset, int *yOffset) {
+
+    int x, y;
+    int x2 = *_x2 + 2;
+    int y2 = *_y2 + 2;
+    int offset;
+    int rows;
+    int quads = 0;
+    int width = x2 - x1 + 1;
+    int height = y2 - y1 + 1;
+
+    if(_DUMP_FLAG) {
+        infof("Slice: (%d,%d)-(%d,%d)", x1, y1, x2, y2);
+        infof("width:%d  min:%d", width, slice->width);
+        infof("height:%d  min:%d", height, slice->height);
+    }
+
+    if(width < slice->width) {
+        width = slice->width;
+        x2 = x1 + width;
+        *_x2 = x2 - 1;
+    }
+
+    if(height < slice->height) {
+        height = slice->height;
+        y2 = y1 + height;
+        *_y2 = y2 - 1;
+    }
+
+    if(_DUMP_FLAG) {
+        infof("Adj height:%d    Adj width:%d", height, width);
+        infof("Top:%d   Mid:%d   Bot:%d", slice->sizes[1][0], slice->sizes[1][1], slice->sizes[1][2]);
+    }
+
+    x = x1 + slice->sizes[0][0];
+    y = y1 + slice->sizes[1][0];
+    GFX_SET_PIECES(pieces, 0, x1, y1, x, y,
+                   slice->coords[0][0], slice->coords[1][0],
+                   slice->coords[0][1], slice->coords[1][1]);
+
+    width -= slice->sizes[0][0];
+    height -= slice->sizes[1][0];
+
+    if(slice->sizes[0][1] != 0) {
+        // We expand horizontally (3x1 or 3x3)
+        width -= slice->sizes[0][2];
+        *xMultiples = width / slice->sizes[0][1];
+        GFX_SET_PIECES(pieces, 1, x, y1, x + slice->sizes[0][1], y,
+                       slice->coords[0][2], slice->coords[1][0],
+                       slice->coords[0][3], slice->coords[1][1]);
+        GFX_SET_PIECES(pieces, 2, x2 - slice->sizes[0][2], y1, x2, y,
+                       slice->coords[0][4], slice->coords[1][0],
+                       slice->coords[0][5], slice->coords[1][1]);
+        offset = width % slice->sizes[0][1];
+        if(offset) {
+            *xTexPos = SCALED_T_COORD(slice->texture->width, (slice->expanding[0] + offset));
+        } else {
+            *xTexPos = 0;
+        }
+        *xOffset = offset;
+    } else {
+        *xMultiples = 0;
+        *xTexPos = 0;
+        *xOffset = 0;
+    }
+    if(slice->sizes[1][0] != 0) {
+        // We expand vertically (1x3 or 3x3
+        height -= slice->sizes[1][2];
+        *yMultiples = height / slice->sizes[1][1];
+        if(_DUMP_FLAG) {
+            infof("Y mult: %d,  h=%d,  s=%d", *yMultiples, height, slice->sizes[1][0]);
+        }
+        rows = *yMultiples + 2;
+        GFX_SET_PIECES(pieces, 3, x1, y, x, y + slice->sizes[1][1],
+                       slice->coords[0][0], slice->coords[1][2],
+                       slice->coords[0][1], slice->coords[1][3]);
+        GFX_SET_PIECES(pieces, 6, x1, y2 - slice->sizes[1][2], x, y2,
+                       slice->coords[0][0], slice->coords[1][4],
+                       slice->coords[0][1], slice->coords[1][5]);
+        offset = height % slice->sizes[1][1];
+        if(offset) {
+            rows++;
+            *yTexPos = SCALED_T_COORD(slice->texture->height, (slice->expanding[1] + offset));
+
+        } else {
+            *yTexPos = 0;
+        }
+        *yOffset = offset;
+        if(_DUMP_FLAG) {
+            infof("Y mult: %d", *yMultiples);
+        }
+    } else {
+        *yMultiples = 1;
+        *yTexPos = 0;
+        *yOffset = 0;
+        rows = 1;
+    }
+
+    // By now we've calculated 1x3 and 3x1. Now check for 3x3 and fill in the
+    // remaining data
+    if((slice->sizes[0][1] != 0) && (slice->sizes[1][0] != 0)) {
+        _gfxMark("3x3");
+        // We need 4, 5, 7, and 8
+        GFX_SET_PIECES(pieces, 4, x, y,
+                       x + slice->sizes[0][1], y + slice->sizes[1][1],
+                       slice->coords[0][2], slice->coords[1][2],
+                       slice->coords[0][3], slice->coords[1][3]);
+        GFX_SET_PIECES(pieces, 5, x2 - slice->sizes[0][2], y, x2, y + slice->sizes[1][1],
+                       slice->coords[0][4], slice->coords[1][2],
+                       slice->coords[0][5], slice->coords[1][3]);
+        GFX_SET_PIECES(pieces, 7, x, y2 - slice->sizes[1][2], x + slice->sizes[0][1], y2,
+                       slice->coords[0][2], slice->coords[1][4],
+                       slice->coords[0][3], slice->coords[1][5]);
+        GFX_SET_PIECES(pieces, 8, x2 - slice->sizes[0][2],
+                       y2 - slice->sizes[1][2], x2, y2,
+                       slice->coords[0][4], slice->coords[1][4],
+                       slice->coords[0][5], slice->coords[1][5]);
+    }
+
+    quads = rows;
+    if(*xMultiples != 0) {
+        if(*xTexPos != 0) {
+            quads *= (*xMultiples + 1 + 2);
+        } else {
+            quads *= (*xMultiples + 2);
+        }
+    }
+
+    _gfxPrintPiece(pieces + 6);
+
+    if(_DUMP_FLAG) {
+        infof("BottomRight: %dx%d", slice->sizes[0][2], slice->sizes[1][2]);
+        infof("Middle: %dx%d, size: %dx%d", slice->sizes[0][1], slice->sizes[1][1],
+              ((x2 - x1 + 1) - slice->sizes[0][0] - slice->sizes[0][2]),
+              ((y2 - y1 +1 ) - slice->sizes[1][0] - slice->sizes[1][2]));
+        infof("mx=%d ox=%d my=%d oy=%d", *xMultiples, *xOffset, *yMultiples, *yOffset);
+        _gfxPrintPiece(pieces);
+        _gfxPrintPiece(pieces + 4);
+        _gfxMark("=== Flag ===");
+        _gfxPrintPiece(pieces);
+        _gfxPrintPiece(pieces + 4);
+        _gfxPrintPiece(pieces + 8);
+    }
+    return quads;
+}
+
+static void _gfxSliceBlitPiece(texture_t *tex, struct _quadPiece_s *piece) {
+    glBindTexture(GL_TEXTURE_2D, tex->id);
+    glBegin( GL_QUADS );
+    glTexCoord2f(piece->s1, piece->t1);
+    glVertex2i(piece->x1, piece->y1);
+    glTexCoord2f(piece->s2, piece->t1);
+    glVertex2i(piece->x2, piece->y1);
+    glTexCoord2f(piece->s2, piece->t2);
+    glVertex2i(piece->x2, piece->y2);
+    glTexCoord2f(piece->s1, piece->t2);
+    glVertex2i(piece->x1, piece->y2);
+    glEnd();
+}
+
+static void _gfxSliceBlitXStrip(texture_t *tex, struct _quadPiece_s *piece,
+                                int count) {
+    int k;
+    int width = piece->x2 - piece->x1;
+
+    for(k = 0; k < count; k++) {
+        _gfxSliceBlitPiece(tex, piece);
+        piece->x1 += width;
+        piece->x2 += width;
+    }
+}
+
+static void _gfxSliceBlitYStrip(texture_t *tex, struct _quadPiece_s *piece,
+                                int count) {
+    int k;
+    int height = piece->y2 - piece->y1;
+
+    for(k = 0; k < count; k++) {
+        _gfxSliceBlitPiece(tex, piece);
+        piece->y1 += height;
+        piece->y2 += height;
+    }
+}
+
+void gfxRect(float red, float green, float blue, float alpha,
+             int x1, int y1, int x2, int y2) {
+    glDisable(GL_TEXTURE);
+    glDisable(GL_BLEND);
+    glBegin( GL_QUADS );
+    glColor4f(red, green, blue, alpha);
+    glVertex2i(x1, y1);
+    glVertex2i(x2 + 1, y1);
+    glVertex2i(x2 + 1, y2 + 1);
+    glVertex2i(x1, y2 + 1);
+    glEnd();
+}
+
+void gfxTestRegion(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4) {
+    gfxRect(1.0, 1.0, 1.0, 1.0, x1 - 1, y1 - 1, x4 + 1, y4 + 1);
+
+    gfxRect(1.0, 0, 0, 1.0, x1, y1, x2, y2);
+    gfxRect(0, 1.0, 0, 1.0, x2, y1, x3, y2);
+    gfxRect(0, 0, 1.0, 1.0, x3, y1, x4, y2);
+
+    gfxRect(1.0, 1.0, 0, 1.0, x1, y2, x2, y3);
+    gfxRect(1.0, 0, 1.0, 1.0,  x2, y2, x3, y3);
+    gfxRect(0, 1.0, 1.0, 1.0, x3, y2, x4, y3);
+
+    gfxRect(.25, .25, .25, 1.0, x1, y3, x2, y4);
+    gfxRect(1.0, 0, 0, 1.0, x2, y3, x3, y4);
+    gfxRect(0, 1.0, 0, 1.0, x3, y3, x4, y4);
+}
+
+#if 0
+void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+    struct _quadPiece_s pieces[9];
+    int quads;
+    int x, y;
+    int baseX1, baseX2;
+    float fx, fy, baseS2;
+    int mx, my;
+    int ox, oy;
+
+    if(slice == NULL) {
+        return;
+    }
+
+    gfxRect(0.2, 1.0, 0.2, 0.8, x1, y1, x2, y2);
+
+    gfxRect(1.0, 1.0, 1.0, 1.0, 120, 130, 121, 131);
+
+    gfxRect(1.0, 1.0, 1.0, 1.0, 0, 0, 1, 300);
+
+    gfxRect(1.0, 1.0, 1.0, 1.0, 635, 0, 650, 150);
+    gfxRect(1.0, 1.0, 1.0, 1.0, 639, 150, 640, 200);
+    gfxRect(1.0, 1.0, 1.0, 1.0, 638, 200, 639, 250);
+
+    gfxTestRegion(100, 150, 118, 172, 263, 228, 301, 281);
+
+    glEnable(GL_TEXTURE);
+    glColor4f(1.0, 1.0, 1.0, 1.0);
+
+    quads = _gfxSliceCalcQuads(slice, x1, y1, &x2, &y2, pieces,
+                               &mx, &my, &fx, &fy, &ox, &oy);
+
+    if(_DUMP_FLAG) {
+        infof("Detail: mx=%d my=%d", mx, my);
+    }
+
+#if 1
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLoadIdentity();
+
+    // TL
+    _gfxSliceBlitPiece(slice->texture, pieces);
+    if(mx) {
+        // TC
+        _gfxSliceBlitXStrip(slice->texture, pieces + 1, mx);
+        pieces[1].x2 = pieces[1].x1 + ox - 1;
+        pieces[1].s2 = fx;
+        _gfxSliceBlitPiece(slice->texture, pieces + 1);
+
+        // TR
+        _gfxSliceBlitPiece(slice->texture, pieces + 2);
+    }
+    if(my) {
+        // ML
+        _gfxSliceBlitYStrip(slice->texture, pieces + 3, my);
+        pieces[3].y2 = pieces[3].y1 + oy - 1;
+        pieces[3].t2 = fy;
+        _gfxSliceBlitPiece(slice->texture, pieces + 3);
+
+        // BL
+        _gfxSliceBlitPiece(slice->texture, pieces + 6);
+        _gfxMark("bottom left");
+        if(mx) {
+            // MC
+            baseX1 = pieces[4].x1;
+            baseX2 = pieces[4].x2;
+            for(y = 0; y < my; y++) {
+                if(_DUMP_FLAG) {
+                    infof("y1:%d  y2:%d", pieces[4].y1, pieces[4].y2);
+                }
+                _gfxSliceBlitXStrip(slice->texture, pieces + 4, mx);
+                pieces[4].x2 = pieces[4].x1 + ox - 1;
+                pieces[4].s2 = fx;
+                _gfxSliceBlitPiece(slice->texture, pieces + 4);
+                pieces[4].x1 = baseX1;
+                pieces[4].x2 = baseX2;
+                pieces[4].y1 += slice->sizes[1][1];
+                pieces[4].y2 += slice->sizes[1][1];
+                pieces[4].s2 = baseS2;
+            }
+            /*
+            baseX = pieces[4].x1;
+            for(y = 0; y < my; y++) {
+                _gfxSliceBlitXStrip(slice->texture, pieces + 4, mx);
+                pieces[4].x1 = pieces[4].x2 + 1;
+                pieces[4].x2 = pieces[4].x1 + ox - 1;
+                pieces[4].s2 = fy;
+                //_gfxSliceBlitPiece(slice->texture, pieces + 4);
+                pieces[4].x1 = baseX;
+                pieces[4].x2 = baseX + slice->sizes[0][1];
+                pieces[4].y1 += slice->sizes[1][0];
+                pieces[4].y2 += slice->sizes[1][0];
+                pieces[4].s2 = baseS2;
+            }
+             */
+            /*
+            pieces[4].y2 = pieces[4].y1 + oy - 1;
+            pieces[4].t2 = fy;
+            _gfxSliceBlitXStrip(slice->texture, pieces + 4, mx);
+            pieces[4].x1 = pieces[4].x2 + 1;
+            pieces[4].x2 = pieces[4].x1 + ox - 1;
+            pieces[4].s2 = fx;
+            _gfxSliceBlitPiece(slice->texture, pieces + 4);
+            */
+
+            // ML
+            _gfxSliceBlitYStrip(slice->texture, pieces + 5, my);
+            pieces[5].y2 = pieces[5].y1 + oy - 1;
+            pieces[5].t2 = fy;
+            _gfxSliceBlitPiece(slice->texture, pieces + 5);
+
+            // BC
+            _gfxSliceBlitXStrip(slice->texture, pieces + 7, mx);
+            pieces[7].x2 = pieces[7].x1 + ox - 1;
+            pieces[7].s2 = fx;
+            _gfxSliceBlitPiece(slice->texture, pieces + 7);
+
+            // BR
+            _gfxSliceBlitPiece(slice->texture, pieces + 8);
+        }
+    }
+#endif
+    _DUMP_FLAG = 0;
+}
+#else
+
+void gfxTestRegion2(flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+    gfxRect(1.0, 1.0, 1.0, 1.0, x1 - 1, y1 - 1, x2 + 2, y2 + 2);
+
+    // slice->sizes[GFX_SLICE_][]
+    gfxRect(1.0, 0, 0, 1.0, x1, y1, x1 + slice->sizes[GFX_SLICE_X][0], y1 + slice->sizes[GFX_SLICE_Y][0]);
+    gfxRect(0, 1.0, 0, 1.0, x1 + slice->sizes[GFX_SLICE_X][0], y1, x2 - slice->sizes[GFX_SLICE_X][2], y1 + slice->sizes[GFX_SLICE_Y][0]);
+    gfxRect(0, 0, 1.0, 1.0, x2 - slice->sizes[GFX_SLICE_X][2], y1, x2 + 1, y1 + slice->sizes[GFX_SLICE_Y][0]);
+
+    gfxRect(1.0, 1.0, 0, 1.0, x1, y1 + slice->sizes[GFX_SLICE_Y][0],
+            x1 + slice->sizes[GFX_SLICE_X][0], y2 - slice->sizes[GFX_SLICE_Y][2]);
+    gfxRect(1.0, 0, 1.0, 1.0, x1 + slice->sizes[GFX_SLICE_X][0], y1 + slice->sizes[GFX_SLICE_Y][0], x2 - slice->sizes[GFX_SLICE_X][2], y2 - slice->sizes[GFX_SLICE_Y][2]);
+    gfxRect(0, 1.0, 1.0, 1.0, x2 - slice->sizes[GFX_SLICE_X][2], y1 + slice->sizes[GFX_SLICE_Y][0], x2 + 1, y2 - slice->sizes[GFX_SLICE_Y][2]);
+
+    gfxRect(.25, .25, .25, 1.0, x1, y2 - slice->sizes[GFX_SLICE_Y][2], x1 + slice->sizes[GFX_SLICE_X][0], y2 + 1);
+    gfxRect(1.0, 0, 0, 1.0, x1 + slice->sizes[GFX_SLICE_X][0], y2 - slice->sizes[GFX_SLICE_Y][2], x2 - slice->sizes[GFX_SLICE_X][2], y2 + 1);
+    gfxRect(0, 1.0, 0, 1.0, x2 - slice->sizes[GFX_SLICE_X][2], y2 - slice->sizes[GFX_SLICE_Y][2], x2 + 1, y2 + 1);
+}
+
+static void _gfxSliceBlit(int x1, int y1, int x2, int y2,
+                          float s1, float t1, float s2, float t2) {
+    glBegin( GL_QUADS );
+    glTexCoord2f(s1, t1);
+    glVertex2i(x1, y1);
+    glTexCoord2f(s2, t1);
+    glVertex2i(x2, y1);
+    glTexCoord2f(s2, t2);
+    glVertex2i(x2, y2);
+    glTexCoord2f(s1, t2);
+    glVertex2i(x1, y2);
+    glEnd();
+}
+
+#define GFX_SLICE_COORDS(s,a,b,c,d) s->coords[GFX_SLICE_X][a], s->coords[GFX_SLICE_Y][b], s->coords[GFX_SLICE_X][c], s->coords[GFX_SLICE_Y][d]
+
+void gfxSliceBlit(flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+    int columns = 0;
+    int rows = 0;
+    int w, h;
+    int ox, oy;
+    float fx, fy;
+    int x, y, k, j;
+
+    if(slice == NULL) {
+        return;
+    }
+
+    gfxTestRegion2(slice, x1, y1, x2, y2);
+
+    glEnable(GL_TEXTURE);
+    glColor4f(1.0, 1.0, 1.0, 1.0);
+
+    glBindTexture(GL_TEXTURE_2D, slice->texture->id);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLoadIdentity();
+
+    w = x2 - x1 + 1;
+    h = y2 - y1 + 1;
+
+    if((w < slice->width) ||
+       ((w > slice->width) && (slice->sizes[GFX_SLICE_X][1] == 0))) {
+        x2 = x1 + slice->width - 1;
+        w = x2 - x1 + 1;
+    }
+    if((h < slice->height) ||
+       ((h > slice->height) && (slice->sizes[GFX_SLICE_Y][1] == 0))) {
+        y2 = y1 + slice->height - 1;
+        h = y2 - y1 + 1;
+    }
+
+    // Top left
+    _gfxSliceBlit(x1, y1,
+                  x1 + slice->sizes[GFX_SLICE_X][0],
+                  y1 + slice->sizes[GFX_SLICE_Y][0],
+                  GFX_SLICE_COORDS(slice, 0, 0, 1, 1));
+
+    if(slice->sizes[GFX_SLICE_X][1] != 0) {
+        w -= slice->sizes[GFX_SLICE_X][0];
+        w -= slice->sizes[GFX_SLICE_X][2];
+
+        columns = w / slice->sizes[GFX_SLICE_X][1];
+        ox = w % slice->sizes[GFX_SLICE_X][1];
+        if(ox) {
+            fx = SCALED_T_COORD(slice->texture->width, slice->expanding[GFX_SLICE_X] + ox);
+        } else {
+            fx = 0.0;
+        }
+
+        // Top right
+        _gfxSliceBlit(x2 - slice->sizes[GFX_SLICE_X][2], y1,
+                      x2 + 1, y1 + slice->sizes[GFX_SLICE_Y][0],
+                      GFX_SLICE_COORDS(slice, 4, 0, 5, 1));
+
+        // Top center
+        x = x1 + slice->sizes[GFX_SLICE_X][0];
+        for(k = columns;
+            k;
+            k--, x += slice->sizes[GFX_SLICE_X][1]) {
+            _gfxSliceBlit(x, y1,
+                          x + slice->sizes[GFX_SLICE_X][1],
+                          y1 + slice->sizes[GFX_SLICE_Y][0],
+                          GFX_SLICE_COORDS(slice, 2, 0, 3, 1));
+        }
+
+        if(ox) {
+            _gfxSliceBlit(x, y1,
+                          x + ox,
+                          y1 + slice->sizes[GFX_SLICE_Y][0],
+                          slice->coords[GFX_SLICE_X][2],
+                          slice->coords[GFX_SLICE_Y][0],
+                          fx,
+                          slice->coords[GFX_SLICE_Y][1]);
+        }
+    }
+
+    if(slice->sizes[GFX_SLICE_Y][1] != 0) {
+        h -= slice->sizes[GFX_SLICE_Y][0];
+        h -= slice->sizes[GFX_SLICE_Y][2];
+
+        rows = h / slice->sizes[GFX_SLICE_Y][1];
+        oy = h % slice->sizes[GFX_SLICE_Y][1];
+        if(oy) {
+            fy = SCALED_T_COORD(slice->texture->height, slice->expanding[GFX_SLICE_Y] + oy);
+        }
+
+        // Bottom left
+        _gfxSliceBlit(x1, y2 - slice->sizes[GFX_SLICE_Y][2],
+                      x1 + slice->sizes[GFX_SLICE_X][0], y2 + 1,
+                      GFX_SLICE_COORDS(slice, 0, 4, 1, 5));
+
+        // Middle left
+        y = y1 + slice->sizes[GFX_SLICE_Y][0];
+        for(k = rows;
+            k;
+            k--, y += slice->sizes[GFX_SLICE_Y][1]) {
+            _gfxSliceBlit(x1, y,
+                          x1 + slice->sizes[GFX_SLICE_X][0],
+                          y + slice->sizes[GFX_SLICE_Y][1],
+                          GFX_SLICE_COORDS(slice, 0, 2, 1, 3));
+        }
+
+        if(oy) {
+            _gfxSliceBlit(x1, y,
+                          x1 + slice->sizes[GFX_SLICE_X][0],
+                          y + oy,
+                          slice->coords[GFX_SLICE_X][0],
+                          slice->coords[GFX_SLICE_Y][2],
+                          slice->coords[GFX_SLICE_X][1],
+                          fy);
+        }
+
+        if(slice->sizes[GFX_SLICE_X][1] != 0) {
+            // Middle right
+            y = y1 + slice->sizes[GFX_SLICE_Y][0];
+            for(k = rows;
+                k;
+                k--, y += slice->sizes[GFX_SLICE_Y][1]) {
+                _gfxSliceBlit(x2 - slice->sizes[GFX_SLICE_X][2], y,
+                              x2 + 1, y + slice->sizes[GFX_SLICE_Y][1],
+                              GFX_SLICE_COORDS(slice, 4, 2, 5, 3));
+            }
+
+            if(oy) {
+                _gfxSliceBlit(x2 - slice->sizes[GFX_SLICE_X][2], y,
+                              x2 + 1,
+                              y + oy,
+                              slice->coords[GFX_SLICE_X][4],
+                              slice->coords[GFX_SLICE_Y][2],
+                              slice->coords[GFX_SLICE_X][5],
+                              fy);
+            }
+
+            //////////////////////////////////////////////////////////////////
+            // Middle center
+
+            y = y1 + slice->sizes[GFX_SLICE_Y][0];
+            for(j = rows;
+                j;
+                j--, y += slice->sizes[GFX_SLICE_Y][1]) {
+                x = x1 + slice->sizes[GFX_SLICE_X][0];
+                for(k = columns;
+                    k;
+                    k--, x += slice->sizes[GFX_SLICE_X][1]) {
+                    _gfxSliceBlit(x, y,
+                                  x + slice->sizes[GFX_SLICE_X][1],
+                                  y + slice->sizes[GFX_SLICE_Y][1],
+                                  GFX_SLICE_COORDS(slice, 2, 2, 3, 3));
+                }
+                if(ox) {
+                    _gfxSliceBlit(x, y,
+                                  x + ox,
+                                  y + slice->sizes[GFX_SLICE_Y][1],
+                                  slice->coords[GFX_SLICE_X][2],
+                                  slice->coords[GFX_SLICE_Y][2],
+                                  fx,
+                                  slice->coords[GFX_SLICE_Y][3]);
+                }
+            }
+            if(oy) {
+                x = x1 + slice->sizes[GFX_SLICE_X][0];
+                for(k = columns;
+                    k;
+                    k--, x += slice->sizes[GFX_SLICE_X][1]) {
+                    _gfxSliceBlit(x, y,
+                                  x + slice->sizes[GFX_SLICE_X][1],
+                                  y + slice->sizes[GFX_SLICE_Y][1],
+                                  slice->coords[GFX_SLICE_X][2],
+                                  slice->coords[GFX_SLICE_Y][2],
+                                  slice->coords[GFX_SLICE_Y][3],
+                                  fy);
+                }
+
+                if(ox) {
+                    _gfxSliceBlit(x, y,
+                                  x + ox,
+                                  y + oy,
+                                  slice->coords[GFX_SLICE_X][2],
+                                  slice->coords[GFX_SLICE_Y][2],
+                                  fx,
+                                  fy);
+                }
+
+            }
+
+            // Bottom center
+            x = x1 + slice->sizes[GFX_SLICE_X][0];
+            for(k = columns;
+                k;
+                k--, x += slice->sizes[GFX_SLICE_X][1]) {
+                _gfxSliceBlit(x, y2 - slice->sizes[GFX_SLICE_Y][2],
+                              x + slice->sizes[GFX_SLICE_X][1],
+                              y2 + 1,
+                              GFX_SLICE_COORDS(slice, 2, 4, 3, 5));
+            }
+
+            if(ox) {
+                _gfxSliceBlit(x, y2 - slice->sizes[GFX_SLICE_Y][2],
+                              x + ox,
+                              y2 + 1,
+                              slice->coords[GFX_SLICE_X][2],
+                              slice->coords[GFX_SLICE_Y][4],
+                              fx,
+                              slice->coords[GFX_SLICE_Y][5]);
+            }
+
+            // Bottom right
+            _gfxSliceBlit(x2 - slice->sizes[GFX_SLICE_X][2],
+                          y2 - slice->sizes[GFX_SLICE_Y][2],
+                          x2 + 1, y2 + 1,
+                          GFX_SLICE_COORDS(slice, 4, 4, 5, 5));
+        }
+    }
+
+    if(_DUMP_FLAG) {
+        infof("Slice: widths  %d  %d  %d", slice->sizes[GFX_SLICE_X][0], w, slice->sizes[GFX_SLICE_X][2]);
+        infof("Slice: heights %d  %d  %d", slice->sizes[GFX_SLICE_Y][0], h, slice->sizes[GFX_SLICE_Y][2]);
+        infof("Slice: middle  %dx%d", slice->sizes[GFX_SLICE_X][1], slice->sizes[GFX_SLICE_Y][1]);
+        infof("Slice: mx=%d  ox=%d  my=%d  oy=%d", columns, ox, rows, oy);
+    }
+    _DUMP_FLAG = 0;
+}
+
+#endif
+
+#endif
 
 #if 0
 void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
@@ -1339,14 +3274,14 @@ void gfxKeycapBlit(font_t *font, const char *caption, int x, int y,
 	}
 
     fontSetColor(1.0, 1.0, 1.0);
-	gfxSliceBlit(gfxCtx.keycapSlice, x, y,
+	gfxSliceBlit(_gfxCtx.keycapSlice, x, y,
 				 x + keywidth,
 				 y + keyheight);
 
 	fontMode();
 	fontSetColor(0.0, 0.0, 0.0);
 	if(idx >= 0) {
-		gfxTexBlitSub(gfxCtx.flubMisc,
+		gfxTexBlitSub(_gfxCtx.flubMisc,
 					  kx1, ky1, kx2, ky2,
 					  x + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER,
 					  x + kx2 - kx1 + KEYCAP_HORZ_SPACER,
@@ -1392,14 +3327,14 @@ void gfxKeycapBlit(font_t *font, const char *caption, int x, int y,
     }
 
     fontSetColor(1.0, 1.0, 1.0);
-	gfxSliceBlit(gfxCtx.keycapSlice, x, y,
+	gfxSliceBlit(_gfxCtx.keycapSlice, x, y,
 				 x + keywidth + xoffset,
 				 y + keyheight);
 	
 	fontMode();
 	fontSetColor(0.0, 0.0, 0.0);
 	if(idx >= 0) {
-		gfxTexBlitSub(gfxCtx.flubMisc,
+		gfxTexBlitSub(_gfxCtx.flubMisc,
 					  kx1, ky1, kx2, ky2,
 					  x + + xoffset + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER,
 					  x + kx2 - kx1 + KEYCAP_HORZ_SPACER + xoffset,
@@ -1477,10 +3412,10 @@ void gfxBlitKeyStr(font_t *font, const char *str, int x, int y, int *width, int 
 }
 
 
-int gfxTexMeshBlit(gfxMeshObj_t *mesh, const texture_t *texture, int x1, int y1) {	
-	gfxMeshObj_t *target;
+int gfxTexMeshBlit2(gfxMeshObj2_t *mesh, const texture_t *texture, int x1, int y1) {
+	gfxMeshObj2_t *target;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, texture)) == NULL)) {
 		return 0;
 	}
 
@@ -1488,19 +3423,19 @@ int gfxTexMeshBlit(gfxMeshObj_t *mesh, const texture_t *texture, int x1, int y1)
 		return 0;
 	}
 
-	gfxTexMeshBlitSubAtPos(target, target->pos, &(target->pos), texture, 0, 0,
+	gfxTexMeshBlitSubAtPos2(target, target->pos, &(target->pos), texture, 0, 0,
 						   texture->width - 1, texture->height - 1,
 						   x1, y1, x1 + texture->width, y1 + texture->height);
 
 	return 1;
 }
 
-int gfxTexMeshBlitSub(gfxMeshObj_t *mesh, const texture_t *texture,
+int gfxTexMeshBlitSub2(gfxMeshObj2_t *mesh, const texture_t *texture,
 	 				  int tx1, int ty1, int tx2, int ty2,
 	 				  int x1, int y1, int x2, int y2) {
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, texture)) == NULL)) {
 		return 0;
 	}
 
@@ -1508,16 +3443,16 @@ int gfxTexMeshBlitSub(gfxMeshObj_t *mesh, const texture_t *texture,
 		return 0;
 	}
 
-	gfxTexMeshBlitSubAtPos(target, target->pos, &(target->pos), texture,
+	gfxTexMeshBlitSubAtPos2(target, target->pos, &(target->pos), texture,
 						   tx1, ty1, tx2, ty2, x1, y1, x2, y2);
 
 	return 1;
 }
 
-int gfxTexMeshTile(gfxMeshObj_t *mesh, const texture_t *texture,
+int gfxTexMeshTile2(gfxMeshObj2_t *mesh, const texture_t *texture,
 				   int tx1, int ty1, int tx2, int ty2,
 				   int x1, int y1, int x2, int y2) {
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 	int rows;
 	int columns;
 	int width = x2 - x1;
@@ -1526,7 +3461,7 @@ int gfxTexMeshTile(gfxMeshObj_t *mesh, const texture_t *texture,
 	int tileHeight = ty2 + 1 - ty1;
 	int quads;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, texture)) == NULL)) {
 		return 0;
 	}
 
@@ -1538,17 +3473,17 @@ int gfxTexMeshTile(gfxMeshObj_t *mesh, const texture_t *texture,
 		return 0;
 	}
 
-	gfxTexMeshTileAtPos(target, target->pos, &(target->pos), texture,
+	gfxTexMeshTileAtPos2(target, target->pos, &(target->pos), texture,
 						tx1, ty1, tx2, ty2, x1, y1, x2, y2);
 
 	return 1;
 }
 
-int gfxSpriteMeshBlit(gfxMeshObj_t *mesh, const flubSprite_t *sprite, int num,
+int gfxSpriteMeshBlit2(gfxMeshObj2_t *mesh, const flubSprite_t *sprite, int num,
 					  int x, int y) {
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, sprite->texture)) == NULL)) {
 		return 0;
 	}
 
@@ -1556,16 +3491,16 @@ int gfxSpriteMeshBlit(gfxMeshObj_t *mesh, const flubSprite_t *sprite, int num,
 		return 0;
 	}
 
-	gfxSpriteMeshBlitAtPos(target, target->pos, &(target->pos), sprite, num, x, y);
+	gfxSpriteMeshBlitAtPos2(target, target->pos, &(target->pos), sprite, num, x, y);
 
 	return 1;
 }
 
-int gfxSpriteMeshBlitResize(gfxMeshObj_t *mesh, const flubSprite_t *sprite,
+int gfxSpriteMeshBlitResize2(gfxMeshObj2_t *mesh, const flubSprite_t *sprite,
 							int num, int x1, int y1, int x2, int y2) {
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, sprite->texture)) == NULL)) {
 		return 0;
 	}
 
@@ -1573,16 +3508,16 @@ int gfxSpriteMeshBlitResize(gfxMeshObj_t *mesh, const flubSprite_t *sprite,
 		return 0;
 	}
 
-	gfxSpriteMeshBlitResizeAtPos(target, target->pos, &(target->pos), sprite, num,
+	gfxSpriteMeshBlitResizeAtPos2(target, target->pos, &(target->pos), sprite, num,
 								 x1, y1, x2, y2);
 
 	return 1;
 }
 
-int gfxSliceMeshBlit(gfxMeshObj_t *mesh, const flubSlice_t *slice,
+int gfxSliceMeshBlit2(gfxMeshObj2_t *mesh, const flubSlice_t *slice,
 					 int x1, int y1, int x2, int y2) {
 #if 0
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 
 	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, slice->texture)) == NULL)) {
 		return 0;
@@ -1598,7 +3533,7 @@ int gfxSliceMeshBlit(gfxMeshObj_t *mesh, const flubSlice_t *slice,
 	return 1;
 }
 
-int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
+int gfxKeycapMeshBlit2(gfxMeshObj2_t *mesh, font_t *font, const char *caption,
 				  int x, int y, int *width, int *height) {
 	int keyheight;
 	int keywidth;
@@ -1606,15 +3541,15 @@ int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
 	int size;
 	int idx;
 	int kx1, ky1, kx2, ky2;
-	gfxMeshObj_t *keyTarget, *fontTarget;
+	gfxMeshObj2_t *keyTarget, *fontTarget;
 
 	if(mesh == NULL) {
 		return 0;
 	}
-	if((keyTarget = gfxMeshFindMeshInChain(mesh, gfxCtx.flubMisc)) == NULL) {
+	if((keyTarget = gfxMeshFindMeshInChain2(mesh, _gfxCtx.flubMisc)) == NULL) {
 		return 0;
 	}
-	if((fontTarget = gfxMeshFindMeshInChain(mesh, fontTextureGet(font))) == NULL) {
+	if((fontTarget = gfxMeshFindMeshInChain2(mesh, fontTextureGet(font))) == NULL) {
 		return 0;
 	}
 
@@ -1645,18 +3580,18 @@ int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
 		keywidth = fontGetStrWidth(font, caption) + KEYCAP_HORZ_SPACER + KEYCAP_HORZ_SPACER;
 	}
 
-	gfxMeshDefaultColor(keyTarget, 1.0, 1.0, 1.0, 1.0);
-	gfxSliceMeshBlit(keyTarget, gfxCtx.keycapSlice, x, y, x + keywidth, y + keyheight);
+	gfxMeshDefaultColor2(keyTarget, 1.0, 1.0, 1.0, 1.0);
+	gfxSliceMeshBlit2(keyTarget, _gfxCtx.keycapSlice, x, y, x + keywidth, y + keyheight);
 
 	if(idx >= 0) {
-		gfxMeshDefaultColor(keyTarget, 0.0, 0.0, 0.0, 1.0);
-		gfxTexMeshBlitSub(keyTarget, gfxCtx.flubMisc,
+		gfxMeshDefaultColor2(keyTarget, 0.0, 0.0, 0.0, 1.0);
+		gfxTexMeshBlitSub2(keyTarget, _gfxCtx.flubMisc,
 					  	  kx1, ky1, kx2, ky2,
 					  	  x + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER,
 					  	  x + kx2 - kx1 + KEYCAP_HORZ_SPACER,
 					  	  y + ky2 - ky1 + KEYCAP_VERT_SPACER);
 	} else {
-		gfxMeshDefaultColor(fontTarget, 0.0, 0.0, 0.0, 1.0);
+		gfxMeshDefaultColor2(fontTarget, 0.0, 0.0, 0.0, 1.0);
 		fontSetColor(0.0, 0.0, 0.0);
 		fontPos(x + KEYCAP_HORZ_SPACER, y + KEYCAP_VERT_SPACER + 2);
 		fontBlitStrMesh(fontTarget, font, caption);
@@ -1672,20 +3607,20 @@ int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
 	return 1;
 }
 
-void gfxTexMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxTexMeshBlitAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						const texture_t *texture, int x1, int y1) {
-	gfxTexMeshBlitSubAtPos(mesh, pos, last, texture, 0, 0,
+	gfxTexMeshBlitSubAtPos2(mesh, pos, last, texture, 0, 0,
 						   texture->width - 1, texture->height - 1,
 						   x1, y1, x1 + texture->width - 1, y1 + texture->height - 1);
 }
 
-void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxTexMeshBlitSubAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						   const texture_t *texture, int tx1, int ty1,
 						   int tx2, int ty2, int x1, int y1, int x2, int y2) {	
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 	float u1, v1, u2, v2;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, texture)) == NULL)) {
 		return;
 	}
 
@@ -1694,16 +3629,16 @@ void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 	u2 = SCALED_T_COORD(texture->width, tx2);
 	v2 = SCALED_T_COORD(texture->height, ty2);
 
-	gfxMeshQuadAtPos(target, pos, last, x1, y1, x2, y2, u1, v1, u2, v2);
+	gfxMeshQuadAtPos2(target, pos, last, x1, y1, x2, y2, u1, v1, u2, v2);
 }
 
-void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxTexMeshTileAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						const texture_t *texture, int tx1, int ty1,
 						int tx2, int ty2, int x1, int y1, int x2, int y2) {
 	tx2++;
 	ty2++;
 
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 	int width = (x2 - x1 + 1);
 	int height = (y2 - y1 + 1);
 	int tileWidth = (tx2 - tx1 + 1);
@@ -1714,7 +3649,7 @@ void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 	int a1, b1, a2, b2;
 	int adj;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, texture)) == NULL)) {
 		return;
 	}
 
@@ -1745,18 +3680,18 @@ void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 					v2 = SCALED_T_COORD(texture->height, ty2);
 				}
 
-				gfxMeshQuadAtPos(target, pos, last, a1, b1, a2, b2, u1, v1, u2, v2);
+				gfxMeshQuadAtPos2(target, pos, last, a1, b1, a2, b2, u1, v1, u2, v2);
 				pos += 6;
 			}
 		}
 	}
 }
 
-void gfxSpriteMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxSpriteMeshBlitAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						   const flubSprite_t *sprite, int num, int x, int y) {
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, sprite->texture)) == NULL)) {
 		return;
 	}
 
@@ -1769,20 +3704,20 @@ void gfxSpriteMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 	ty1 = row * sprite->height;
 	ty2 = ty1 + sprite->height - 1;
 
-	gfxTexMeshBlitSubAtPos(target, pos, last, sprite->texture,
+	gfxTexMeshBlitSubAtPos2(target, pos, last, sprite->texture,
 						   tx1, ty1, tx2, ty2, x, y,
 						   x + sprite->width, y + sprite->height);
 }
 
-void gfxSpriteMeshBlitResizeAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxSpriteMeshBlitResizeAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 								 const flubSprite_t *sprite, int num,
 								 int x1, int y1, int x2, int y2) {
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 	int row = num / sprite->spritesPerRow;
 	int column = num % sprite->spritesPerRow;
 	int tx1, ty1, tx2, ty2;
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, sprite->texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, sprite->texture)) == NULL)) {
 		return;
 	}
 
@@ -1791,18 +3726,18 @@ void gfxSpriteMeshBlitResizeAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 	ty1 = row * sprite->height;
 	ty2 = ty1 + sprite->height;
 
-	gfxTexMeshBlitSubAtPos(target, pos, last, sprite->texture,
+	gfxTexMeshBlitSubAtPos2(target, pos, last, sprite->texture,
 						   tx1, ty1, tx2, ty2, x1, y1, x2, y2);
 }
 
-void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxSliceMeshBlitAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						  const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
 #if 0
-	gfxMeshObj_t *target;
+	gfxMeshObj2_t *target;
 	int ref, dim[2][6], x, y;
 
 
-	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain(mesh, slice->texture)) == NULL)) {
+	if((mesh == NULL) || ((target = gfxMeshFindMeshInChain2(mesh, slice->texture)) == NULL)) {
 		return;
 	}
 
@@ -1854,7 +3789,7 @@ void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
 #endif
 }
 
-void gfxMeshRangeAlphaSet(gfxMeshObj_t *mesh, int start, int end, float alpha) {
+void gfxMeshRangeAlphaSet2(gfxMeshObj2_t *mesh, int start, int end, float alpha) {
 	int k;
 	VBOColor_t *color;
 
@@ -1884,7 +3819,7 @@ typedef void (*gfxEffectCleanupCB_t)(void *context);
 
 typedef struct gfxEffect_s gfxEffect_t;
 struct gfxEffect_s {
-	gfxMeshObj_t *mesh;
+	gfxMeshObj2_t *mesh;
 	Uint32 tickStart;
 	Uint32 tickDuration;
 	Uint32 tickCurrent;
@@ -1919,14 +3854,14 @@ static void _gfxEffectCommonCleanup(void *context) {
 	util_free(context);
 }
 
-gfxEffect_t *gfxEffectMotionLinear(gfxMeshObj_t *mesh, int startPos,
+gfxEffect_t *gfxEffectMotionLinear(gfxMeshObj2_t *mesh, int startPos,
 								   int endPos, int xMove, int yMove, int duration) {
 	gfxEffect_t *effect;
 
 	return NULL;
 }
 
-gfxEffect_t *gfxEffectScale(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectScale(gfxMeshObj2_t *mesh, int startPos, int endPos,
 							float xStart, float xEnd, float yStart, float yEnd,
 							int xOffset, int yOffset, int duration) {
 	return NULL;
@@ -1949,10 +3884,10 @@ static void _gfxEffectFadeHandler(gfxEffect_t *effect, void *context) {
 		value = fade->alphaStart + ((fade->alphaEnd - fade->alphaStart) * amount);
 	}
 
-	gfxMeshRangeAlphaSet(effect->mesh, effect->indexStart, effect->indexEnd, value);
+	gfxMeshRangeAlphaSet2(effect->mesh, effect->indexStart, effect->indexEnd, value);
 }
 
-gfxEffect_t *gfxEffectFade(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectFade(gfxMeshObj2_t *mesh, int startPos, int endPos,
 						   float alphaStart, float alphaEnd, int duration) {
 	gfxEffect_t *effect;
 	_gfxEffectFadeContext_t *context;
@@ -1969,13 +3904,13 @@ gfxEffect_t *gfxEffectFade(gfxMeshObj_t *mesh, int startPos, int endPos,
 	return effect;
 }
 
-gfxEffect_t *gfxEffectShade(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectShade(gfxMeshObj2_t *mesh, int startPos, int endPos,
 							float red, float green, float blue, float alpha,
 							int duration) {
 	return NULL;
 }
 
-gfxEffect_t *gfxEffectPulse(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectPulse(gfxMeshObj2_t *mesh, int startPos, int endPos,
 							float initRed, float initGreen, float initBlue,
 							float initAlpha, int midDuration,
 							float midRed, float midGreen, float midBlue,
@@ -1985,7 +3920,7 @@ gfxEffect_t *gfxEffectPulse(gfxMeshObj_t *mesh, int startPos, int endPos,
 	return NULL;
 }
 
-gfxEffect_t *gfxEffectCreate(gfxMeshObj_t *mesh, gfxEffectCB_t handler,
+gfxEffect_t *gfxEffectCreate(gfxMeshObj2_t *mesh, gfxEffectCB_t handler,
 							 int indexBegin, int indexEnd,
 							 gfxEffectCB_t start, gfxEffectCB_t end,
 							 gfxEffectCleanupCB_t cleanup, int autoCleanup,
@@ -2017,17 +3952,17 @@ void gfxEffectDestroy(gfxEffect_t *effect) {
 }
 
 void gfxEffectRegister(gfxEffect_t *effect) {
-	effect->next = gfxCtx.activeEffects;
-	gfxCtx.activeEffects = effect;
+	effect->next = _gfxCtx.activeEffects;
+	_gfxCtx.activeEffects = effect;
 }
 
 void gfxEffectUnregister(gfxEffect_t *effect) {
 	gfxEffect_t *walk, *last = NULL;
 
-	for(walk = gfxCtx.activeEffects; walk != NULL; last = walk, walk = walk->next) {
+	for(walk = _gfxCtx.activeEffects; walk != NULL; last = walk, walk = walk->next) {
 		if(walk == effect) {
 			if(last == NULL) {
-				gfxCtx.activeEffects = walk->next;
+				_gfxCtx.activeEffects = walk->next;
 			} else {
 				last->next = walk->next;
 			}
@@ -2038,7 +3973,7 @@ void gfxEffectUnregister(gfxEffect_t *effect) {
 void gfxUpdate(Uint32 ticks) {
 	gfxEffect_t *effect, *last, *next, *walk;
 
-	for(effect = gfxCtx.activeEffects; effect != NULL; effect = next) {
+	for(effect = _gfxCtx.activeEffects; effect != NULL; effect = next) {
 		next = effect->next;
 		if(effect->tickStart == 0) {
 			effect->tickStart = ticks;
@@ -2054,10 +3989,10 @@ void gfxUpdate(Uint32 ticks) {
 			if(effect->completed != NULL) {
 				effect->completed(effect, effect->context);
 			}
-			for(last = NULL, walk = gfxCtx.activeEffects; walk != NULL; last = walk, walk = walk->next) {
+			for(last = NULL, walk = _gfxCtx.activeEffects; walk != NULL; last = walk, walk = walk->next) {
 				if(walk == effect) {
 					if(last == NULL) {
-						gfxCtx.activeEffects = effect->next;
+						_gfxCtx.activeEffects = effect->next;
 					} else {
 						last->next = effect->next;
 					}

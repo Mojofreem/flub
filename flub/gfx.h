@@ -29,19 +29,16 @@ int gfxStart(void);
 int gfxShutdown(void);
 
 typedef struct flubSprite_s {
-	const texture_t *texture;
+	texture_t *texture;
 	int spritesPerRow;
 	int width;
 	int height;
 } flubSprite_t;
 
-flubSprite_t *gfxSpriteCreate(const texture_t *texture, int width, int height);
+flubSprite_t *gfxSpriteCreate(texture_t *texture, int width, int height);
 void gfxSpriteDestroy(flubSprite_t *sprite);
 
-#define FLUB_SLICE_3_BY_3   0
-#define FLUB_SLICE_1_BY_3   1
-#define FLUB_SLICE_3_BY_1   2
-
+#if 0
 typedef struct flubSlice_s {
 	texture_t *textures[3][3];
 	int width;
@@ -61,7 +58,30 @@ flubSlice_t *gfx1x3SliceCreate(const texture_t *texture,
 flubSlice_t *gfx3x1SliceCreate(const texture_t *texture,
                                int x1, int y1, int x2, int y2, int x3, int x4);
 void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height);
+#else
+typedef struct flubSlice_s {
+    texture_t *texture;
+    float coords[2][6];
+    int expanding[2];
+    int sizes[2][3];
+    int width;
+    int height;
+} flubSlice_t;
 
+flubSlice_t *gfxSliceCreate(texture_t *texture,
+                            int x1, int y1, int x2, int y2, int x3,
+                            int y3, int x4, int y4);
+void gfxSliceDestroy(flubSlice_t *slice);
+
+flubSlice_t *gfx3x3SliceCreate(texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3,
+                               int y3, int x4, int y4);
+flubSlice_t *gfx1x3SliceCreate(texture_t *texture,
+                               int x1, int y1, int x2, int y2, int y3, int y4);
+flubSlice_t *gfx3x1SliceCreate(texture_t *texture,
+                               int x1, int y1, int x2, int y2, int x3, int x4);
+void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height);
+#endif
 
 // Keycap support
 
@@ -74,6 +94,8 @@ void gfx2dClipRegionClear(void);
 
 
 #define GFX_MESH_FLAG_COLOR		0x1
+#define GFX_MESH_FLAG_TEXTURED  0x2
+#define GFX_MESH_FLAG_3D        0x4
 
 #define GFX_MESH_VBO_VERTEX_ID	0
 #define GFX_MESH_VBO_TEXTURE_ID	1
@@ -88,7 +110,7 @@ typedef void (*gfxMeshInitCB_t)(void *context);
 // 2 triangles per quad
 #define MESH_QUAD_SIZE(x)		MESH_TRIANGLE_SIZE(2 * x)
 
-// Simple check if the quad has room for more entries
+// Simple check if the mesh has room for more entries
 #define MESH_GROWTH_CHECK(m,s)	(((m)->pos + (s)) >= ((m)->length))
 
 
@@ -102,6 +124,12 @@ typedef struct VBOVertexPos2D_s {
 	GLint y;
 } VBOVertexPos2D_t;
 
+typedef struct VBOVertexPos3D_s {
+    GLfloat x;
+    GLfloat y;
+    GLfloat z;
+} VBOVertexPos3D_t;
+
 typedef struct VBOColor_s {
 	float r;
 	float g;
@@ -109,11 +137,86 @@ typedef struct VBOColor_s {
 	float a;
 } VBOColor_t;
 
-typedef struct gfxMeshObj2D_s {
-
-} gfxMeshObj2D_t;
-
 typedef struct gfxMeshObj_s {
+    GLuint program;
+    GLenum primitiveType;
+    int vertices;
+    int is2d;
+    int pos;
+    int dirty;
+    texture_t *texture;
+
+    GLuint vboId[3];
+
+    union {
+        VBOVertexPos2D_t *vbo2DVertices;
+        VBOVertexPos3D_t *vbo3DVertices;
+    };
+    VBOTexCoord_t *vboTexCoords;
+    VBOColor_t *vboColors;
+
+    struct gfxMeshObj_s *prev;
+    struct gfxMeshObj_s *next;
+} gfxMeshObj_t;
+
+
+gfxMeshObj_t *gfxMeshCreate(int vertexCount, GLenum primitive, int is2D, int isColor,
+                            texture_t *texture);
+void gfxMeshDestroy(gfxMeshObj_t *mesh);
+void gfxMeshClear(gfxMeshObj_t *mesh);
+void gfxMeshTextureAssign(gfxMeshObj_t *mesh, texture_t *texture);
+void gfxMeshPrependToChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh);
+void gfxMeshAppendToChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh);
+void gfxMeshRemoveFromChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh);
+gfxMeshObj_t *gfxMeshFindMeshInChain(gfxMeshObj_t *mesh, texture_t *texture);
+void gfxMeshRender(gfxMeshObj_t *mesh);
+void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+                 float s1, float t1, float s2, float t2);
+void gfxMeshQuadAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                      int x1, int y1, int x2, int y2,
+                      float s1, float t1, float s2, float t2,
+                      int skipColor);
+void gfxMeshQuadColor(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+                      float s1, float t1, float s2, float t2,
+                      float red, float green, float blue, float alpha);
+void gfxMeshQuadColorAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                           int x1, int y1, int x2, int y2,
+                           float s1, float t1, float s2, float t2,
+                           float red, float green, float blue, float alpha);
+int gfxTexMeshBlit(gfxMeshObj_t *mesh, texture_t *texture, int x1, int y1);
+void gfxTexMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                         texture_t *texture, int x1, int y1);
+int gfxTexMeshBlitSub(gfxMeshObj_t *mesh, texture_t *texture,
+                      int tx1, int ty1, int tx2, int ty2,
+                      int x1, int y1, int x2, int y2);
+void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                            texture_t *texture, int tx1, int ty1,
+                            int tx2, int ty2, int x1, int y1, int x2, int y2);
+int gfxTexMeshTile(gfxMeshObj_t *mesh, texture_t *texture,
+                   int tx1, int ty1, int tx2, int ty2,
+                   int x1, int y1, int x2, int y2);
+void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                         texture_t *texture, int tx1, int ty1,
+                         int tx2, int ty2, int x1, int y1, int x2, int y2);
+int gfxSpriteMeshBlit(gfxMeshObj_t *mesh, flubSprite_t *sprite, int num,
+                      int x, int y);
+void gfxSpriteMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                            flubSprite_t *sprite, int num, int x, int y);
+int gfxSpriteMeshBlitResize(gfxMeshObj_t *mesh, flubSprite_t *sprite,
+                            int num, int x1, int y1, int x2, int y2);
+void gfxSpriteMeshBlitResizeAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                                  flubSprite_t *sprite, int num,
+                                  int x1, int y1, int x2, int y2);
+int gfxSliceMeshBlit(gfxMeshObj_t *mesh, flubSlice_t *slice,
+                     int x1, int y1, int x2, int y2);
+void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+                           const flubSlice_t *slice, int x1, int y1, int x2, int y2);
+int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
+                      int x, int y, int *width, int *height);
+void gfxMeshRangeAlphaSet(gfxMeshObj_t *mesh, int start, int end, float alpha);
+
+
+typedef struct gfxMeshObj2_s {
 	gfxMeshInitCB_t initCB;
 	void *context;
 
@@ -135,38 +238,38 @@ typedef struct gfxMeshObj_s {
 	VBOTexCoord_t *vboTexCoords;
 	VBOColor_t *vboColors;
 
-	struct gfxMeshObj_s *prev;
-	struct gfxMeshObj_s *next;
+	struct gfxMeshObj2_s *prev;
+	struct gfxMeshObj2_s *next;
 
-	struct gfxMeshObj_s *_gfx_mgr_prev;
-	struct gfxMeshObj_s *_gfx_mgr_next;
-} gfxMeshObj_t;
+	struct gfxMeshObj2_s *_gfx_mgr_prev;
+	struct gfxMeshObj2_s *_gfx_mgr_next;
+} gfxMeshObj2_t;
 
-gfxMeshObj_t *gfxMeshCreate(int triCount, int flags, const texture_t *texture);
-void gfxMeshDestroy(gfxMeshObj_t *mesh);
-void gfxMeshInitCBSet(gfxMeshObj_t *mesh, gfxMeshInitCB_t initCB, void *context);
-void gfxMeshClear(gfxMeshObj_t *mesh);
-void gfxMeshTextureAssign(gfxMeshObj_t *mesh, const texture_t *texture);
-void gfxMeshDefaultColor(gfxMeshObj_t *mesh, float red, float green,
+gfxMeshObj2_t *gfxMeshCreate2(int triCount, int flags, const texture_t *texture);
+void gfxMeshDestroy2(gfxMeshObj2_t *mesh);
+void gfxMeshInitCBSet2(gfxMeshObj2_t *mesh, gfxMeshInitCB_t initCB, void *context);
+void gfxMeshClear2(gfxMeshObj2_t *mesh);
+void gfxMeshTextureAssign2(gfxMeshObj2_t *mesh, const texture_t *texture);
+void gfxMeshDefaultColor2(gfxMeshObj2_t *mesh, float red, float green,
 						 float blue, float alpha);
 
-void gfxMeshPrependToChain(gfxMeshObj_t **chain, gfxMeshObj_t *mesh);
-void gfxMeshAppendToChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh);
-void gfxMeshRemoveFromChain(gfxMeshObj_t *chain, gfxMeshObj_t *mesh);
+void gfxMeshPrependToChain2(gfxMeshObj2_t **chain, gfxMeshObj2_t *mesh);
+void gfxMeshAppendToChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh);
+void gfxMeshRemoveFromChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh);
 
-gfxMeshObj_t *gfxMeshFindMeshInChain(gfxMeshObj_t *mesh, const texture_t *texture);
+gfxMeshObj2_t *gfxMeshFindMeshInChain2(gfxMeshObj2_t *mesh, const texture_t *texture);
 
-void gfxMeshRender(gfxMeshObj_t *mesh);
+void gfxMeshRender2(gfxMeshObj2_t *mesh);
 
-void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+void gfxMeshQuad2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
 			     float s1, float t1, float s2, float t2);
-void gfxMeshQuadAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxMeshQuadAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 					  int x1, int y1, int x2, int y2,
 					  float s1, float t1, float s2, float t2);
-void gfxMeshQuadColor(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
+void gfxMeshQuadColor2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
                       float s1, float t1, float s2, float t2,
 			          float red, float green, float blue, float alpha);
-void gfxMeshQuadColorAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxMeshQuadColorAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						   int x1, int y1, int x2, int y2,
 						   float s1, float t1, float s2, float t2,
 						   float red, float green, float blue, float alpha);
@@ -179,46 +282,46 @@ void gfxTexTile(const texture_t *texture, int tx1, int ty1, int tx2, int ty2,
 void gfxSpriteBlit(const flubSprite_t *sprite, int num, int x, int y);
 void gfxSpriteBlitResize(const flubSprite_t *sprite, int num, int x1, int y1,
 						 int x2, int y2);
-void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2);
+void gfxSliceBlit(flubSlice_t *slice, int x1, int y1, int x2, int y2);
 void gfxKeycapBlit(font_t *font, const char *caption, int x, int y,
 				   int *width, int *height);
 void gfxBlitKeyStr(font_t *font, const char *str, int x, int y,
 				   int *width, int *height);
 
-int gfxTexMeshBlit(gfxMeshObj_t *mesh, const texture_t *texture, int x1, int y1);
-int gfxTexMeshBlitSub(gfxMeshObj_t *mesh, const texture_t *texture,
+int gfxTexMeshBlit2(gfxMeshObj2_t *mesh, const texture_t *texture, int x1, int y1);
+int gfxTexMeshBlitSub2(gfxMeshObj2_t *mesh, const texture_t *texture,
 	 				  int tx1, int ty1, int tx2, int ty2,
 	 				  int x1, int y1, int x2, int y2);
-int gfxTexMeshTile(gfxMeshObj_t *mesh, const texture_t *texture,
+int gfxTexMeshTile2(gfxMeshObj2_t *mesh, const texture_t *texture,
 				   int tx1, int ty1, int tx2, int ty2,
 				   int x1, int y1, int x2, int y2);
-int gfxSpriteMeshBlit(gfxMeshObj_t *mesh, const flubSprite_t *sprite, int num,
+int gfxSpriteMeshBlit2(gfxMeshObj2_t *mesh, const flubSprite_t *sprite, int num,
 					  int x, int y);
-int gfxSpriteMeshBlitResize(gfxMeshObj_t *mesh, const flubSprite_t *sprite,
+int gfxSpriteMeshBlitResize2(gfxMeshObj2_t *mesh, const flubSprite_t *sprite,
 							int num, int x1, int y1, int x2, int y2);
-int gfxSliceMeshBlit(gfxMeshObj_t *mesh, const flubSlice_t *slice,
+int gfxSliceMeshBlit2(gfxMeshObj2_t *mesh, const flubSlice_t *slice,
 					 int x1, int y1, int x2, int y2);
-int gfxKeycapMeshBlit(gfxMeshObj_t *mesh, font_t *font, const char *caption,
+int gfxKeycapMeshBlit2(gfxMeshObj2_t *mesh, font_t *font, const char *caption,
 				      int x, int y, int *width, int *height);
 
-void gfxTexMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxTexMeshBlitAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						const texture_t *texture, int x1, int y1);
-void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxTexMeshBlitSubAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						   const texture_t *texture, int tx1, int ty1,
 						   int tx2, int ty2, int x1, int y1, int x2, int y2);
-void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxTexMeshTileAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						const texture_t *texture, int tx1, int ty1,
 						int tx2, int ty2, int x1, int y1, int x2, int y2);
-void gfxSpriteMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxSpriteMeshBlitAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						   const flubSprite_t *sprite, int num, int x, int y);
-void gfxSpriteMeshBlitResizeAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxSpriteMeshBlitResizeAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 								 const flubSprite_t *sprite, int num,
 								 int x1, int y1, int x2, int y2);
-void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
+void gfxSliceMeshBlitAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
 						  const flubSlice_t *slice, int x1, int y1, int x2, int y2);
 
 
-void gfxMeshRangeAlphaSet(gfxMeshObj_t *mesh, int start, int end, float alpha);
+void gfxMeshRangeAlphaSet2(gfxMeshObj2_t *mesh, int start, int end, float alpha);
 
 typedef struct gfxEffect_s gfxEffect_t;
 
@@ -226,7 +329,7 @@ typedef void (*gfxEffectCB_t)(gfxEffect_t *effect, void *context);
 typedef void (*gfxEffectCleanupCB_t)(void *context);
 
 struct gfxEffect_s {
-	gfxMeshObj_t *mesh;
+	gfxMeshObj2_t *mesh;
 	Uint32 tickStart;
 	Uint32 tickDuration;
 	Uint32 tickCurrent;
@@ -246,17 +349,17 @@ struct gfxEffect_s {
 };
 
 
-gfxEffect_t *gfxEffectMotionLinear(gfxMeshObj_t *mesh, int startPos,
+gfxEffect_t *gfxEffectMotionLinear(gfxMeshObj2_t *mesh, int startPos,
 								   int endPos, int xMove, int yMove, int duration);
-gfxEffect_t *gfxEffectScale(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectScale(gfxMeshObj2_t *mesh, int startPos, int endPos,
 							float xStart, float xEnd, float yStart, float yEnd,
 							int xOffset, int yOffset, int duration);
-gfxEffect_t *gfxEffectFade(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectFade(gfxMeshObj2_t *mesh, int startPos, int endPos,
 						   float alphaStart, float alphaEnd, int duration);
-gfxEffect_t *gfxEffectShade(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectShade(gfxMeshObj2_t *mesh, int startPos, int endPos,
 							float red, float green, float blue, float alpha,
 							int duration);
-gfxEffect_t *gfxEffectPulse(gfxMeshObj_t *mesh, int startPos, int endPos,
+gfxEffect_t *gfxEffectPulse(gfxMeshObj2_t *mesh, int startPos, int endPos,
 							float initRed, float initGreen, float initBlue,
 							float initAlpha, int midDuration,
 							float midRed, float midGreen, float midBlue,
@@ -264,7 +367,7 @@ gfxEffect_t *gfxEffectPulse(gfxMeshObj_t *mesh, int startPos, int endPos,
 							float endRed, float endGreen, float endBlue,
 							float endAlpha, int loop);
 
-gfxEffect_t *gfxEffectCreate(gfxMeshObj_t *mesh, gfxEffectCB_t handler,
+gfxEffect_t *gfxEffectCreate(gfxMeshObj2_t *mesh, gfxEffectCB_t handler,
 							 int indexBegin, int indexEnd,
 							 gfxEffectCB_t start, gfxEffectCB_t end,
 							 gfxEffectCleanupCB_t cleanup, int autoCleanup,

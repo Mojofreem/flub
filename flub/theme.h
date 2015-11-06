@@ -205,7 +205,7 @@ typedef struct flubGuiThemeFont_s {
 typedef struct flubGuiThemeTexture_s {
     eFlubGuiThemeType_t type;
     int id;
-    const texture_t *texture;
+    texture_t *texture;
 } flubGuiThemeTexture_t;
 
 typedef enum {
@@ -221,7 +221,7 @@ typedef struct flubGuiThemeFragmentBitmap_s {
     int y1;
     int x2;
     int y2;
-    const texture_t *texture;
+    texture_t *texture;
 } flubGuiThemeFragmentBitmap_t;
 
 typedef struct flubGuiThemeFragmentAnimBitmapFrame_s {
@@ -236,7 +236,7 @@ typedef struct flubGuiThemeFragmentAnimBitmap_s {
     int width;
     int height;
     flubGuiThemeFragmentAnimBitmapFrame_t *frames;
-    const texture_t *texture;
+    texture_t *texture;
 } flubGuiThemeFragmentAnimBitmap_t;
 
 typedef struct flubGuiThemeFragmentSliceFrame_s {
@@ -247,7 +247,7 @@ typedef struct flubGuiThemeFragmentSliceFrame_s {
 
 typedef struct flubGuiThemeFragmentAnimSlice_s {
     int count;
-    const texture_t *texture;
+    texture_t *texture;
     struct flubGuiThemeFragmentSliceFrame_s *frames;
 } flubGuiThemeFragmentAnimSlice_t;
 
@@ -334,7 +334,7 @@ flubGuiThemeFragment_t *flubGuiThemeFragmentGetById(flubGuiTheme_t *theme, int i
 flubGuiThemeComponents_t *flubGuiThemeComponentGetByName(flubGuiTheme_t *theme, const char *name);
 flubGuiThemeComponents_t *flubGuiThemeComponentGetById(flubGuiTheme_t *theme, int id);
 
-void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj_t *mesh,
+void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj2_t *mesh,
                       Uint32 *ticks, int x1, int y1, int x2, int y2);
 
 
