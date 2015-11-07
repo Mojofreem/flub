@@ -273,6 +273,7 @@ int main(int argc, char *argv[]) {
     texture_t *tex_tiles;
     flubSlice_t *dlg_title;
     flubSlice_t *dlg_body;
+    flubSlice_t *dlg_tile;
     gfxMeshObj2_t *meshFont;
     gfxMeshObj2_t *meshChain;
     gfxMeshObj2_t *meshDlg;
@@ -370,6 +371,7 @@ int main(int argc, char *argv[]) {
     expBar = gfx1x3SliceCreate(rawSlices, GFX_SLICE_NOTILE_ALL, 44, 106, 60, 128, 137, 152);
     info("== Done expbar ====");
     //vboTestInit(misc->id);
+    dlg_tile = gfxSliceCreate(rawSlices, GFX_SLICE_NOTILE_LEFT|GFX_SLICE_NOTILE_TOP|GFX_SLICE_NOTILE_RIGHT|GFX_SLICE_NOTILE_BOTTOM, 145, 36, 150, 41, 182, 57, 186, 61);
 
     sound = audioSoundGet("resources/sounds/menumove.wav");
 
@@ -644,7 +646,9 @@ int main(int argc, char *argv[]) {
 
         gfxMeshRender2(meshChain);
 
-        gfxSliceBlit(slice, 100, 150, 300, 280);
+        gfxTexBlit(dlg, 0, 0);
+
+        gfxSliceBlit(dlg_tile, 100, 150, 300, 280);
         gfxSliceBlit(slice, 400, 200, 410, 280);
         gfxSliceBlit(slice, 50, 300, 320, 450);
         //gfxSliceBlit(healthBar, 10, *videoHeight - healthBar->height - 10, 300, *videoHeight - 10);

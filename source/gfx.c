@@ -439,6 +439,9 @@ flubSlice_t *gfxSliceCreate(texture_t *texture, unsigned int flags,
     slice->width = slice->sizes[GFX_SLICE_X][0] + slice->sizes[GFX_SLICE_X][1] + slice->sizes[GFX_SLICE_X][2];
     slice->height = slice->sizes[GFX_SLICE_Y][0] + slice->sizes[GFX_SLICE_Y][1] + slice->sizes[GFX_SLICE_Y][2];
 
+    infof("Slice: (%d,%d)-(%d,%d)-(%d,%d)-(%d,%d) %dx%d",
+          x1, y1, x2, y2, x3, y3, x4, y4, slice->width, slice->height);
+
     return slice;
 }
 
@@ -2135,14 +2138,6 @@ static void _gfxSliceBlit(gfxSliceBlitterCB_t blitter, void *context, flubSlice_
         return;
     }
 
-    glEnable(GL_TEXTURE);
-    glColor4f(1.0, 1.0, 1.0, 1.0);
-
-    glBindTexture(GL_TEXTURE_2D, slice->texture->id);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLoadIdentity();
-
     w = x2 - x1 + 1;
     h = y2 - y1 + 1;
 
@@ -2280,7 +2275,6 @@ static void _gfxSliceBlit(gfxSliceBlitterCB_t blitter, void *context, flubSlice_
                 }
             }
 
-            //////////////////////////////////////////////////////////////////
             // Middle center
             if(slice->flags & GFX_SLICE_NOTILE_CENTER) {
                 blitter(context, x1 + slice->sizes[GFX_SLICE_X][0],
@@ -2319,10 +2313,10 @@ static void _gfxSliceBlit(gfxSliceBlitterCB_t blitter, void *context, flubSlice_
                          k--, x += slice->sizes[GFX_SLICE_X][1]) {
                         blitter(context, x, y,
                                 x + slice->sizes[GFX_SLICE_X][1],
-                                y + slice->sizes[GFX_SLICE_Y][1],
+                                y + oy + 1,
                                 slice->coords[GFX_SLICE_X][2],
                                 slice->coords[GFX_SLICE_Y][2],
-                                slice->coords[GFX_SLICE_Y][3],
+                                slice->coords[GFX_SLICE_X][3],
                                 fy);
                     }
 
@@ -2378,6 +2372,12 @@ static void _gfxSliceBlit(gfxSliceBlitterCB_t blitter, void *context, flubSlice_
 }
 
 void gfxSliceBlit(flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+    glEnable(GL_TEXTURE);
+    glBindTexture(GL_TEXTURE_2D, slice->texture->id);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLoadIdentity();
+
     _gfxSliceBlit(_gfxSliceImmediateBlit, NULL, slice, x1, y1, x2, y2);
 }
 
