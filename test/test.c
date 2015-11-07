@@ -355,7 +355,7 @@ int main(int argc, char *argv[]) {
     //img = texmgrQuickLoad( "assets/misc/test_img.gif", GL_NEAREST, GL_NEAREST, 0, 0, 0, 0, &iw, &ih);
     footex = dlg;
 
-    slice = gfxSliceCreate(dlg, 0, 0, 18, 22, 74, 69, 126, 106);
+    slice = gfxSliceCreate(dlg, GFX_SLICE_NOTILE_ALL, 0, 0, 18, 22, 74, 69, 126, 106);
     //sliceTest = gfxSliceCreate(dlg, 145, 6, 150, 11, 182, 27, 186, 31);
     //infof("Texture id for flubmisc1 is %d", misc->id);
 
@@ -365,9 +365,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    healthBar = gfx3x1SliceCreate(rawSlices, 0, 106, 28, 130, 34, 42);
+    healthBar = gfx3x1SliceCreate(rawSlices, GFX_SLICE_NOTILE_ALL, 0, 106, 28, 130, 34, 42);
     info("== Expbar =========");
-    expBar = gfx1x3SliceCreate(rawSlices, 44, 106, 60, 128, 137, 152);
+    expBar = gfx1x3SliceCreate(rawSlices, GFX_SLICE_NOTILE_ALL, 44, 106, 60, 128, 137, 152);
     info("== Done expbar ====");
     //vboTestInit(misc->id);
 
@@ -419,8 +419,8 @@ int main(int argc, char *argv[]) {
     infof("Sprite set: %d - %dx%d, %d per row", sprites->texture->id,
           sprites->width, sprites->height, sprites->spritesPerRow);
 
-    dlg_title = gfxSliceCreate(tex_misc, 41, 17, 43, 19, 60, 26, 62, 28);
-    dlg_body = gfxSliceCreate(tex_misc, 41, 29, 43, 30, 60, 40, 62, 42);
+    dlg_title = gfxSliceCreate(tex_misc, GFX_SLICE_NOTILE_ALL, 41, 17, 43, 19, 60, 26, 62, 28);
+    dlg_body = gfxSliceCreate(tex_misc, GFX_SLICE_NOTILE_ALL, 41, 29, 43, 30, 60, 40, 62, 42);
 
     // Create meshes for font, flubmisc, and flubsimplegui
     meshFont = gfxMeshCreate2(MESH_QUAD_SIZE(100), GFX_MESH_FLAG_COLOR, fontTextureGet(fnt));

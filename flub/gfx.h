@@ -38,29 +38,17 @@ typedef struct flubSprite_s {
 flubSprite_t *gfxSpriteCreate(texture_t *texture, int width, int height);
 void gfxSpriteDestroy(flubSprite_t *sprite);
 
-#if 0
-typedef struct flubSlice_s {
-	texture_t *textures[3][3];
-	int width;
-	int height;
-} flubSlice_t;
 
-flubSlice_t *gfxSliceCreate(const texture_t *texture,
-							int x1, int y1, int x2, int y2, int x3,
-							int y3, int x4, int y4);
-void gfxSliceDestroy(flubSlice_t *slice);
+#define GFX_SLICE_NOTILE_LEFT   0x01
+#define GFX_SLICE_NOTILE_TOP    0x02
+#define GFX_SLICE_NOTILE_RIGHT  0x04
+#define GFX_SLICE_NOTILE_BOTTOM 0x08
+#define GFX_SLICE_NOTILE_CENTER 0x10
+#define GFX_SLICE_NOTILE_ALL   (GFX_SLICE_NOTILE_LEFT|GFX_SLICE_NOTILE_TOP|GFX_SLICE_NOTILE_RIGHT|GFX_SLICE_NOTILE_BOTTOM|GFX_SLICE_NOTILE_CENTER)
 
-flubSlice_t *gfx3x3SliceCreate(const texture_t *texture,
-                               int x1, int y1, int x2, int y2, int x3,
-                               int y3, int x4, int y4);
-flubSlice_t *gfx1x3SliceCreate(const texture_t *texture,
-                               int x1, int y1, int x2, int y2, int y3, int y4);
-flubSlice_t *gfx3x1SliceCreate(const texture_t *texture,
-                               int x1, int y1, int x2, int y2, int x3, int x4);
-void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height);
-#else
 typedef struct flubSlice_s {
     texture_t *texture;
+    unsigned int flags;
     float coords[2][6];
     int expanding[2];
     int sizes[2][3];
@@ -68,20 +56,17 @@ typedef struct flubSlice_s {
     int height;
 } flubSlice_t;
 
-flubSlice_t *gfxSliceCreate(texture_t *texture,
+flubSlice_t *gfxSliceCreate(texture_t *texture, unsigned int flags,
                             int x1, int y1, int x2, int y2, int x3,
                             int y3, int x4, int y4);
 void gfxSliceDestroy(flubSlice_t *slice);
 
-flubSlice_t *gfx3x3SliceCreate(texture_t *texture,
-                               int x1, int y1, int x2, int y2, int x3,
-                               int y3, int x4, int y4);
-flubSlice_t *gfx1x3SliceCreate(texture_t *texture,
+flubSlice_t *gfx1x3SliceCreate(texture_t *texture, unsigned int flags,
                                int x1, int y1, int x2, int y2, int y3, int y4);
-flubSlice_t *gfx3x1SliceCreate(texture_t *texture,
+flubSlice_t *gfx3x1SliceCreate(texture_t *texture, unsigned int flags,
                                int x1, int y1, int x2, int y2, int x3, int x4);
 void gfxSliceRoundUpSizeToInterval(flubSlice_t *slice, int *width, int *height);
-#endif
+
 
 // Keycap support
 

@@ -884,7 +884,7 @@ static int _themeParseAnimSliceFrameEntry(const char *json, jsmntok_t *tokens, c
     }
     frame = util_calloc(sizeof(flubGuiThemeFragmentSliceFrame_t), 0, NULL);
     frame->delayMs = entry.delay;
-    frame->slice = gfxSliceCreate(fragment->animSlice.texture,
+    frame->slice = gfxSliceCreate(fragment->animSlice.texture, GFX_SLICE_NOTILE_ALL,
                                   entry.x1, entry.y1,
                                   entry.x2, entry.y2,
                                   entry.x3, entry.y3,
@@ -1008,6 +1008,7 @@ static int _themeParseFragmentEntry(const char *json, jsmntok_t *tokens, const c
             break;
         case eFlubGuiSlice:
             fragment->slice = gfxSliceCreate(((flubGuiThemeTexture_t *)(theme->idMap[entry.texid]))->texture,
+                                             GFX_SLICE_NOTILE_ALL,
                                              entry.x1, entry.y1,
                                              entry.x2, entry.y2,
                                              entry.x3, entry.y3,
