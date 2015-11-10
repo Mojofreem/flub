@@ -25,6 +25,8 @@
 #include <stdlib.h>
 
 
+//#define GFX_USE_INLINE_BLITTER
+
 #define GFX_TRACE       1
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,8 +44,8 @@ struct _gfxCtx_s {
     int init;
 	texture_t *flubMisc;
 	flubSlice_t *keycapSlice;
-	gfxEffect_t *activeEffects;
-    gfxMeshObj2_t *meshList;
+//	gfxEffect_t *activeEffects;
+//    gfxMeshObj2_t *meshList;
     _gfxMeshObjEntry_t *meshObjList;
     float red;
     float green;
@@ -54,8 +56,8 @@ struct _gfxCtx_s {
         .init = 0,
 		.flubMisc = NULL,
 		.keycapSlice = NULL,
-		.activeEffects = NULL,
-        .meshList = NULL,
+//		.activeEffects = NULL,
+//        .meshList = NULL,
         .meshObjList = NULL,
         .red = 1.0,
         .green = 1.0,
@@ -159,19 +161,21 @@ static int _gfxCalcKeycapCaptionQuads(const char *caption) {
 // Module initialization and global state handlers
 ///////////////////////////////////////////////////////////////////////////////
 
-static void _gfxMeshReinit(gfxMeshObj2_t *mesh);
+//static void _gfxMeshReinit(gfxMeshObj2_t *mesh);
 static void _gfxMeshObjReinit(_gfxMeshObjEntry_t *mesh);
 
 static void _gfxVideoNotifieeCB(int width, int height, int fullscreen) {
-    gfxMeshObj2_t *mesh;
+//    gfxMeshObj2_t *mesh;
     _gfxMeshObjEntry_t *walk;
     int k;
 
     debug(DBG_GFX, GFX_TRACE, "Rebinding VBO's...");
+    /*
     for(k = 0, mesh = _gfxCtx.meshList; mesh != NULL; mesh = mesh->_gfx_mgr_next, k++) {
         debugf(DBG_GFX, GFX_TRACE, "* VBO %d", k);
         _gfxMeshReinit(mesh);
     }
+     */
     for(k = 0, walk = _gfxCtx.meshObjList; walk != NULL; walk = walk->next, k++) {
         debugf(DBG_GFX, GFX_TRACE, "* VBO %d", k);
         _gfxMeshObjReinit(walk);
@@ -645,7 +649,7 @@ static void _gfxMeshManagerRemove(_gfxMeshObjEntry_t *mesh) {
     mesh->prev = NULL;
 }
 
-gfxMeshObj_t *gfxMeshCreate(int vertexCount, GLenum primitive, int is2D, int isColor,
+gfxMeshObj_t *gfxMeshCreate(int vertexCount, GLenum primitive, int isColor,
                             texture_t *texture) {
     _gfxMeshObjEntry_t *mesh;
     int length;
@@ -654,17 +658,15 @@ gfxMeshObj_t *gfxMeshCreate(int vertexCount, GLenum primitive, int is2D, int isC
     int texturePos;
     int bcount = 1;
 
-    if(is2D) {
-        size += sizeof(VBOVertexPos2D_t) * vertexCount;
-    } else {
-        size += sizeof(VBOVertexPos3D_t) * vertexCount;
-    }
+    size += sizeof(VBOVertexPos2D_t) * vertexCount;
 
     if(isColor) {
+        bcount++;
         colorPos = size;
         size += sizeof(VBOColor_t) * vertexCount;
     }
     if(texture != NULL) {
+        bcount++;
         texturePos = size;
         size += sizeof(VBOTexCoord_t) * vertexCount;
     }
@@ -676,22 +678,16 @@ gfxMeshObj_t *gfxMeshCreate(int vertexCount, GLenum primitive, int is2D, int isC
     mesh->meshObj.vertices = vertexCount;
     mesh->meshObj.texture = texture;
     mesh->meshObj.dirty = 1;
-    mesh->meshObj.is2d = is2D;
     _gfxMeshManagerAdd(mesh);
 
-    if(isColor) {
-        bcount++;
-    }
-    if(texture != NULL) {
-        bcount++;
-    }
     glGenBuffers(bcount, mesh->meshObj.vboId);
     mesh->meshObj.vbo2DVertices = ((VBOVertexPos2D_t *)(mesh->buffer));
     if(isColor) {
         mesh->meshObj.vboColors = ((VBOColor_t *)(mesh->buffer + colorPos));
     }
     if(texture != NULL) {
-        mesh->meshObj.vboTexCoords = ((VBOTexCoord_t *)(mesh->buffer + texturePos));
+        mesh->meshObj.vboTexCoords = ((VBOTexCoord_t *) (mesh->buffer +
+                                                         texturePos));
     }
 
     return &(mesh->meshObj);
@@ -825,15 +821,9 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
     }
 
     if(mesh->dirty) {
-        if(mesh->is2d) {
-            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
-            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos2D_t), mesh->vbo2DVertices, GL_DYNAMIC_DRAW);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-        } else {
-            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
-            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos3D_t), mesh->vbo3DVertices, GL_DYNAMIC_DRAW);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+        glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos2D_t), mesh->vbo2DVertices, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         if(mesh->vboTexCoords != NULL) {
             glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[((mesh->vboColors != NULL) ? 2 : 1)]);
@@ -842,7 +832,7 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
         }
 
         if(mesh->vboColors != NULL) {
-            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
+            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[1]);
             glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOColor_t), mesh->vboColors, GL_DYNAMIC_DRAW);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
@@ -850,15 +840,9 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
         mesh->dirty = 0;
     }
 
-    if(mesh->is2d) {
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
-        glVertexPointer(2, GL_INT, 0, (void*)(0));
-    } else {
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
-        glVertexPointer(3, GL_FLOAT, 0, (void*)(0));
-    }
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+    glVertexPointer(2, GL_INT, 0, (void*)(0));
 
     if(mesh->vboTexCoords != NULL) {
         glBindTexture(GL_TEXTURE_2D, mesh->texture->id);
@@ -869,7 +853,7 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
 
     if(mesh->vboColors != NULL) {
         glEnableClientState(GL_COLOR_ARRAY);
-        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[1]);
         glColorPointer(4, GL_FLOAT, 0, (void*)(0));
     }
 
@@ -889,20 +873,9 @@ void gfxMeshRender(gfxMeshObj_t *mesh) {
     gfxMeshRender(mesh->next);
 }
 
-
-void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
-                 float s1, float t1, float s2, float t2) {
-    gfxMeshQuadAtPos(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2, 0);
-}
-
-#define GFX_MESH_ADD_3DTRI_VERT(vp,tp,z1,x1,y1,s1,t1)    vp->x = x1; vp->y = y1; vp->z = z1; tp->s = s1; tp->t = t1; vp++; tp++
-#define GFX_MESH_ADD_3DTRIANGLE(vp,tp,z,x1,y1,x2,y2,x3,y3,s1,t1,s2,t2,s3,t3)    \
-        GFX_MESH_ADD_3DTRI_VERT(vp,tp,z,x1,y1,s1,t1); \
-        GFX_MESH_ADD_3DTRI_VERT(vp,tp,z,x2,y2,s2,t2); \
-        GFX_MESH_ADD_3DTRI_VERT(vp,tp,z,x3,y3,s3,t3)
-#define GFX_MESH_ADD_3DQUAD(vp,tp,z,x1,y1,x2,y2,s1,t1,s2,t2)    \
-        GFX_MESH_ADD_3DTRIANGLE(vp,tp,z,x1,y1,x2,y1,x1,y2,s1,t1,s2,t1,s1,t2);   \
-        GFX_MESH_ADD_3DTRIANGLE(vp,tp,z,x2,y1,x2,y2,x1,y2,s2,t1,s2,t2,s1,t2)
+///////////////////////////////////////////////////////////////////////////////
+// Blitter functions and support
+///////////////////////////////////////////////////////////////////////////////
 
 #define GFX_MESH_ADD_2DTRI_VERT(vp,tp,x1,y1,s1,t1)    vp->x = x1; vp->y = y1; tp->s = s1; tp->t = t1; vp++; tp++
 #define GFX_MESH_ADD_2DTRIANGLE(vp,tp,x1,y1,x2,y2,x3,y3,s1,t1,s2,t2,s3,t3)    \
@@ -913,15 +886,6 @@ void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
         GFX_MESH_ADD_2DTRIANGLE(vp,tp,x1,y1,x2,y1,x1,y2,s1,t1,s2,t1,s1,t2);   \
         GFX_MESH_ADD_2DTRIANGLE(vp,tp,x2,y1,x2,y2,x1,y2,s2,t1,s2,t2,s1,t2)
 
-#define GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z1,x1,y1)    vp->x = x1; vp->y = y1; vp->z = z1; vp++
-#define GFX_MESH_ADD_3DTRIANGLE_NOTEX(vp,z,x1,y1,x2,y2,x3,y3)    \
-        GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z,x1,y1); \
-        GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z,x2,y2); \
-        GFX_MESH_ADD_3DTRI_VERT_NOTEX(vp,z,x3,y3)
-#define GFX_MESH_ADD_3DQUAD_NOTEX(vp,z,x1,y1,x2,y2)    \
-        GFX_MESH_ADD_3DTRIANGLE_NOTEX(vp,z,x1,y1,x2,y1,x1,y2);   \
-        GFX_MESH_ADD_3DTRIANGLE_NOTEX(vp,z,x2,y1,x2,y2,x1,y2)
-
 #define GFX_MESH_ADD_2DTRI_VERT_NOTEX(vp,x1,y1)    vp->x = x1; vp->y = y1; vp++
 #define GFX_MESH_ADD_2DTRIANGLE_NOTEX(vp,x1,y1,x2,y2,x3,y3)    \
         GFX_MESH_ADD_2DTRI_VERT_NOTEX(vp,x1,y1); \
@@ -931,88 +895,72 @@ void gfxMeshQuad(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
         GFX_MESH_ADD_2DTRIANGLE_NOTEX(vp,x1,y1,x2,y1,x1,y2);   \
         GFX_MESH_ADD_2DTRIANGLE_NOTEX(vp,x2,y1,x2,y2,x1,y2)
 
-#define GFX_VBO_DEFAULT_Z   1
+#if GFX_USE_INLINE_BLITTER
+// Use macro defined blitters
 
-void gfxMeshQuadAtPos(gfxMeshObj_t *mesh, int pos, int *last,
-                      int x1, int y1, int x2, int y2,
-                      float s1, float t1, float s2, float t2,
-                      int skipColor) {
+
+#else
+// Use function blitters
+
+static void _gfxBlitQuad(int x1, int y1, int x2, int y2,
+                         float s1, float t1, float s2, float t2) {
+    glBegin( GL_QUADS );
+    glTexCoord2f(s1, t1);
+    glVertex2i(x1, y1);
+    glTexCoord2f(s2, t1);
+    glVertex2i(x2, y1);
+    glTexCoord2f(s2, t2);
+    glVertex2i(x2, y2);
+    glTexCoord2f(s1, t2);
+    glVertex2i(x1, y2);
+    glEnd();
+}
+
+static void _gfxBlitQuadToMesh(gfxMeshObj_t *mesh, int pos, int *last,
+                               int x1, int y1, int x2, int y2,
+                               float s1, float t1, float s2, float t2) {
     int k;
     VBOColor_t *color;
     VBOVertexPos2D_t *vertex2D;
-    VBOVertexPos3D_t *vertex3D;
     VBOTexCoord_t *texture;
 
-    if(!skipColor) {
-        if(mesh->vboColors != NULL) {
-            color = mesh->vboColors + pos;
-            for(k = 0; k < 6; k++) {
-                color->r = _gfxCtx.red;
-                color->g = _gfxCtx.green;
-                color->b = _gfxCtx.blue;
-                color->a = _gfxCtx.alpha;
-                color++;
-            }
+    if((pos + 6) >= mesh->vertices) {
+        return;
+    }
+
+    if(mesh->vboColors != NULL) {
+        color = mesh->vboColors + pos;
+        for(k = 0; k < 6; k++) {
+            color->r = _gfxCtx.red;
+            color->g = _gfxCtx.green;
+            color->b = _gfxCtx.blue;
+            color->a = _gfxCtx.alpha;
+            color++;
         }
     }
 
     if(mesh->vboTexCoords != NULL) {
         texture = mesh->vboTexCoords + pos;
-        if(mesh->is2d) {
-            vertex2D = mesh->vbo2DVertices + pos;
-            GFX_MESH_ADD_2DQUAD(vertex2D,
-                                texture,
-                                x1, y1, x2, y2, s1, t1, s2, t2);
-        } else {
-            vertex3D = mesh->vbo3DVertices + pos;
-            GFX_MESH_ADD_3DQUAD(vertex3D, texture, GFX_VBO_DEFAULT_Z,
-                                x1, y1, x2, y2, s1, t1, s2, t2);
-        }
+        vertex2D = mesh->vbo2DVertices + pos;
+        GFX_MESH_ADD_2DQUAD(vertex2D,
+                            texture,
+                            x1, y1, x2, y2, s1, t1, s2, t2);
     } else {
-        if(mesh->is2d) {
-            vertex2D = mesh->vbo2DVertices + pos;
-            GFX_MESH_ADD_2DQUAD_NOTEX(vertex2D, x1, y1, x2, y2);
-        } else {
-            vertex3D = mesh->vbo3DVertices + pos;
-            GFX_MESH_ADD_3DQUAD_NOTEX(vertex3D, GFX_VBO_DEFAULT_Z, x1, y1, x2, y2);
-        }
+        vertex2D = mesh->vbo2DVertices + pos;
+        GFX_MESH_ADD_2DQUAD_NOTEX(vertex2D, x1, y1, x2, y2);
     }
 
     if(last != NULL) {
         *last = pos + 6;
     }
-
-    mesh->dirty = 1;
 }
 
-void gfxMeshQuadColor(gfxMeshObj_t *mesh, int x1, int y1, int x2, int y2,
-                      float s1, float t1, float s2, float t2,
-                      float red, float green, float blue, float alpha) {
-    gfxMeshQuadColorAtPos(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2,
-                          s1, t1, s2, t2, red, green, blue, alpha);
-}
+#endif
 
-void gfxMeshQuadColorAtPos(gfxMeshObj_t *mesh, int pos, int *last,
-                           int x1, int y1, int x2, int y2,
-                           float s1, float t1, float s2, float t2,
-                           float red, float green, float blue, float alpha) {
-    int k;
-    VBOColor_t *color;
-    VBOVertexPos2D_t *vertex;
-    VBOTexCoord_t *texture;
-
-    if(mesh->vboColors != NULL) {
-        color = mesh->vboColors + pos;
-        for(k = 0; k < 6; k++) {
-            color->r = red;
-            color->g = green;
-            color->b = blue;
-            color->a = alpha;
-            color++;
-        }
-    }
-
-    gfxMeshQuadAtPos(mesh, pos, last, x1, y1, x2, y2, s1, t1, s2, t2, 1);
+void gfxBlitQuadToMesh(gfxMeshObj_t *mesh,
+                       int x1, int y1, int x2, int y2,
+                       float s1, float t1, float s2, float t2) {
+    _gfxBlitQuadToMesh(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2);
 }
 
 int gfxTexMeshBlit(gfxMeshObj_t *mesh, texture_t *texture, int x1, int y1) {
@@ -1059,6 +1007,12 @@ int gfxTexMeshBlitSub(gfxMeshObj_t *mesh, texture_t *texture,
     return 1;
 }
 
+#define GFX_CALC_UV_COORDS(t,_x1,_y1,_x2,_y2)   \
+        float u1 = SCALED_T_COORD(t->width, _x1);   \
+        float v1 = SCALED_T_COORD(t->height, _y1);  \
+        float u2 = SCALED_T_COORD(t->width, _x2);   \
+        float v2 = SCALED_T_COORD(t->height, _y2);
+
 void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
                             texture_t *texture, int tx1, int ty1,
                             int tx2, int ty2, int x1, int y1, int x2, int y2) {
@@ -1074,7 +1028,7 @@ void gfxTexMeshBlitSubAtPos(gfxMeshObj_t *mesh, int pos, int *last,
     u2 = SCALED_T_COORD(texture->width, tx2);
     v2 = SCALED_T_COORD(texture->height, ty2);
 
-    gfxMeshQuadAtPos(target, pos, last, x1, y1, x2, y2, u1, v1, u2, v2, 0);
+    _gfxBlitQuadToMesh(target, pos, last, x1, y1, x2, y2, u1, v1, u2, v2);
 }
 
 int gfxTexMeshTile(gfxMeshObj_t *mesh, texture_t *texture,
@@ -1155,7 +1109,7 @@ void gfxTexMeshTileAtPos(gfxMeshObj_t *mesh, int pos, int *last,
                     v2 = SCALED_T_COORD(texture->height, ty2);
                 }
 
-                gfxMeshQuadAtPos(target, pos, last, a1, b1, a2, b2, u1, v1, u2, v2, 0);
+                _gfxBlitQuadToMesh(target, pos, last, a1, b1, a2, b2, u1, v1, u2, v2);
                 pos += 6;
             }
         }
@@ -1260,7 +1214,7 @@ int gfxSliceMeshBlit(gfxMeshObj_t *mesh, flubSlice_t *slice,
 }
 
 void gfxSliceMeshBlitAtPos(gfxMeshObj_t *mesh, int pos, int *last,
-                           const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
+                           flubSlice_t *slice, int x1, int y1, int x2, int y2) {
 #if 0
     gfxMeshObj2_t *target;
 	int ref, dim[2][6], x, y;
@@ -1416,560 +1370,11 @@ void gfxMeshRangeAlphaSet(gfxMeshObj_t *mesh, int start, int end, float alpha) {
     mesh->dirty = 1;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-static void _gfxMeshReinit(gfxMeshObj2_t *mesh) {
-    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-        glGenBuffers(3, mesh->vboId);
-    } else {
-        glGenBuffers(2, mesh->vboId);
-    }
-    mesh->dirty = 1;
-}
-
-gfxMeshObj2_t *gfxMeshCreate2(int triCount, int flags, const texture_t *texture) {
-	gfxMeshObj2_t *mesh;
-
-	mesh = util_alloc(sizeof(gfxMeshObj2_t), NULL);
-	memset(mesh, 0, sizeof(gfxMeshObj2_t));
-	mesh->flags = flags;
-	mesh->length = MESH_TRIANGLE_SIZE(triCount);
-	mesh->dirty = 1;
-	mesh->texture = texture;
-	mesh->red = 1.0;
-	mesh->green = 1.0;
-	mesh->blue = 1.0;
-	mesh->alpha = 1.0;
-    mesh->program = _gfxCtx.simpleProgram;
-
-	if(flags & GFX_MESH_FLAG_COLOR) {
-		glGenBuffers(3, mesh->vboId);
-		mesh->vboColors = util_alloc((mesh->length * sizeof(VBOColor_t)), NULL);
-	} else {
-		glGenBuffers(2, mesh->vboId);
-	}
-
-	mesh->vboVertices = util_alloc((mesh->length * sizeof(VBOVertexPos2D_t)), NULL);
-	mesh->vboTexCoords = util_alloc((mesh->length * sizeof(VBOTexCoord_t)), NULL);
-
-    if(_gfxCtx.meshList == NULL) {
-        _gfxCtx.meshList = mesh;
-    } else {
-        mesh->_gfx_mgr_next = _gfxCtx.meshList;
-        if(mesh->_gfx_mgr_next != NULL) {
-            mesh->_gfx_mgr_next->_gfx_mgr_prev = mesh;
-        }
-        mesh->_gfx_mgr_prev = NULL;
-        _gfxCtx.meshList = mesh;
-    }
-
-	return mesh;
-}
-
-void gfxMeshDestroy2(gfxMeshObj2_t *mesh) {
-	if(mesh == NULL) {
-		return;
-	}
-
-    if(mesh->_gfx_mgr_prev == NULL) {
-        _gfxCtx.meshList = mesh->_gfx_mgr_next;
-        if(_gfxCtx.meshList != NULL) {
-            _gfxCtx.meshList->_gfx_mgr_prev = NULL;
-        }
-    } else {
-        mesh->_gfx_mgr_prev->_gfx_mgr_next = mesh->_gfx_mgr_next;
-        if(mesh->_gfx_mgr_next != NULL) {
-            mesh->_gfx_mgr_next->_gfx_mgr_prev = mesh->_gfx_mgr_prev;
-        }
-    }
-
-	if(mesh->next != NULL) {
-		errorf("Mesh object freed with active chain pointer.");
-	}
-	if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-		glDeleteBuffersARB(3, mesh->vboId);
-		util_free(mesh->vboColors);
-	} else {
-		glDeleteBuffersARB(2, mesh->vboId);
-	}
-	util_free(mesh->vboVertices);
-	util_free(mesh->vboTexCoords);
-}
-
-void gfxMeshInitCBSet(gfxMeshObj2_t *mesh, gfxMeshInitCB_t initCB, void *context) {
-	mesh->initCB = initCB;
-	mesh->context = context;
-}
-
-void gfxMeshClear2(gfxMeshObj2_t *mesh) {
-	if(mesh == NULL) {
-		return;
-	}
-	mesh->pos = 0;
-	mesh->dirty = 1;
-}
-
-void gfxMeshTextureAssign2(gfxMeshObj2_t *mesh, const texture_t *texture) {
-	if(mesh == NULL) {
-		return;
-	}
-	mesh->texture = texture;
-}
-
-void gfxMeshDefaultColor2(gfxMeshObj2_t *mesh, float red, float green,
-						 float blue, float alpha) {
-	if(mesh == NULL) {
-		return;
-	}
-	mesh->red = red;
-	mesh->green = green;
-	mesh->blue = blue;
-	mesh->alpha = alpha;
-}
-
-void gfxMeshPrependToChain2(gfxMeshObj2_t **chain, gfxMeshObj2_t *mesh) {
-	gfxMeshObj2_t *walk;
-
-	if((mesh == NULL) || (chain == NULL)) {
-		return;
-	}
-
-	mesh->next = *chain;
-	*chain = mesh;
-}
-
-void gfxMeshAppendToChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh) {
-	gfxMeshObj2_t *walk;
-
-	if((mesh == NULL) || (chain == NULL)) {
-		return;
-	}
-
-	for(walk = chain; walk->next != NULL; walk = walk->next);
-
-	walk->next = mesh;
-	mesh->prev = walk;
-}
-
-void gfxMeshRemoveFromChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh) {
-	gfxMeshObj2_t *walk, *last = NULL;
-
-	if(mesh == NULL) {
-		return;
-	}
-
-	// Remove a mesh from the mesh chain
-	if(chain == mesh) {
-		warning("Cannot free mesh from the chain that it heads.");
-		return;
-	}
-	for(walk = chain; walk != NULL; last = walk, walk = walk->next) {
-		if(walk == mesh) {
-			last->next = mesh->next;
-			if(mesh->next != NULL) {
-				mesh->next->prev = last;
-			}
-			return;
-		}
-	}
-	warning("Cannot free mesh from chain it is not a member of.");
-}
-
-gfxMeshObj2_t *gfxMeshFindMeshInChain2(gfxMeshObj2_t *mesh, const texture_t *texture) {
-	gfxMeshObj2_t *walk;
-
-	if(mesh == NULL) {
-		return NULL;
-	}
-
-	for(walk = mesh; walk != NULL; walk = walk->next) {
-		if(walk->texture == texture) {
-			return walk;
-		}
-	}
-	return NULL;
-}
-
-void gfxMeshRender2(gfxMeshObj2_t *mesh) {
-	if(mesh == NULL) {
-		return;
-	}
-
-	gfxMeshRender2(mesh->next);
-
-	if(mesh->initCB != NULL) {
-		mesh->initCB(mesh->context);
-	}	
-
-    glUseProgram(mesh->program);
-
-	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	if(mesh->dirty) {
-		glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
-		glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos2D_t), mesh->vboVertices, GL_DYNAMIC_DRAW);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-		glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_TEXTURE_ID]);
-		glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOTexCoord_t), mesh->vboTexCoords, GL_DYNAMIC_DRAW);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-		if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-			glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
-			glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOColor_t), mesh->vboColors, GL_DYNAMIC_DRAW);
-			glBindBuffer(GL_ARRAY_BUFFER, 0);			
-		}
-
-		mesh->dirty = 0;
-	}
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
-	glVertexPointer(2, GL_INT, 0, (void*)(0));
-
-	glBindTexture(GL_TEXTURE_2D, mesh->texture->id);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_TEXTURE_ID]);
-	glTexCoordPointer(2, GL_FLOAT, 0, (void*)(0));
-
-	if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-		glEnableClientState(GL_COLOR_ARRAY);
-		glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
-		glColorPointer(4, GL_FLOAT, 0, (void*)(0));		
-	}
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	glDrawArrays(GL_TRIANGLES, 0, mesh->pos);
-
-	if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-		glDisableClientState(GL_COLOR_ARRAY);
-	}
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-
-	glDisableClientState(GL_VERTEX_ARRAY);
-
-    glUseProgram(0);
-}
-
-
-void gfxMeshQuad2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
-			     float s1, float t1, float s2, float t2) {
-	gfxMeshQuadAtPos2(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2);
-}
-
-void gfxMeshQuadAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
-				 	  int x1, int y1, int x2, int y2,
-			     	  float s1, float t1, float s2, float t2) {
-	int k;
-	VBOColor_t *color;
-	VBOVertexPos2D_t *vertex;
-	VBOTexCoord_t *texture;
-
-	if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-		color = mesh->vboColors + pos;
-		for(k = 0; k < 6; k++) {
-			color->r = mesh->red;
-			color->g = mesh->green;
-			color->b = mesh->blue;
-			color->a = mesh->alpha;
-			color++;
-		}
-	}
-
-	vertex = mesh->vboVertices + pos;
-	texture = mesh->vboTexCoords + pos;
-
-	// Triangle 1, vertex 1
-	vertex->x = x1;
-	vertex->y = y1;
-	texture->s = s1;
-	texture->t = t1;
-	vertex++;
-	texture++;
-
-	// Triangle 1, vertex 2
-	vertex->x = x2;
-	vertex->y = y1;
-	texture->s = s2;
-	texture->t = t1;
-	vertex++;
-	texture++;
-
-	// Triangle 1, vertex 3
-	vertex->x = x1;
-	vertex->y = y2;
-	texture->s = s1;
-	texture->t = t2;
-	vertex++;
-	texture++;
-
-	// Triangle 2, vertex 1
-	vertex->x = x2;
-	vertex->y = y1;
-	texture->s = s2;
-	texture->t = t1;
-	vertex++;
-	texture++;
-
-	// Triangle 2, vertex 2
-	vertex->x = x2;
-	vertex->y = y2;
-	texture->s = s2;
-	texture->t = t2;
-	vertex++;
-	texture++;
-
-	// Triangle 2, vertex 3
-	vertex->x = x1;
-	vertex->y = y2;
-	texture->s = s1;
-	texture->t = t2;
-
-	if(last != NULL) {
-		*last = pos + 6;
-	}
-
-	mesh->dirty = 1;
-}
-
-void gfxMeshQuadColor2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
-					  float s1, float t1, float s2, float t2,
-					  float red, float green, float blue, float alpha) {
-	gfxMeshQuadColorAtPos2(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2,
-						  s1, t1, s2, t2, red, green, blue, alpha);
-}
-
-void gfxMeshQuadColorAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
-						   int x1, int y1, int x2, int y2,
-						   float s1, float t1, float s2, float t2,
-						   float red, float green, float blue, float alpha) {
-	int k;
-	VBOColor_t *color;
-	VBOVertexPos2D_t *vertex;
-	VBOTexCoord_t *texture;
-
-	if(mesh->flags & GFX_MESH_FLAG_COLOR) {
-		color = mesh->vboColors + pos;
-		for(k = 0; k < 6; k++) {
-			color->r = red;
-			color->g = green;
-			color->b = blue;
-			color->a = alpha;
-			color++;
-		}
-	}
-
-	vertex = mesh->vboVertices + pos;
-	texture = mesh->vboTexCoords + pos;
-
-	// Triangle 1, vertex 1
-	vertex->x = x1;
-	vertex->y = y1;
-	texture->s = s1;
-	texture->t = t1;
-	vertex++;
-	texture++;
-
-	// Triangle 1, vertex 2
-	vertex->x = x2;
-	vertex->y = y1;
-	texture->s = s2;
-	texture->t = t1;
-	vertex++;
-	texture++;
-
-	// Triangle 1, vertex 3
-	vertex->x = x1;
-	vertex->y = y2;
-	texture->s = s1;
-	texture->t = t2;
-	vertex++;
-	texture++;
-
-	// Triangle 2, vertex 1
-	vertex->x = x2;
-	vertex->y = y1;
-	texture->s = s2;
-	texture->t = t1;
-	vertex++;
-	texture++;
-
-	// Triangle 2, vertex 2
-	vertex->x = x2;
-	vertex->y = y2;
-	texture->s = s2;
-	texture->t = t2;
-	vertex++;
-	texture++;
-
-	// Triangle 2, vertex 3
-	vertex->x = x1;
-	vertex->y = y2;
-	texture->s = s1;
-	texture->t = t2;
-
-	if(last != NULL) {
-		*last = pos + 6;
-	}
-
-	mesh->dirty = 1;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // Blit and render
 ///////////////////////////////////////////////////////////////////////////////
 
-void gfxTexBlit(const texture_t *texture, int x1, int y1) {
+void gfxTexBlit(texture_t *texture, int x1, int y1) {
     glBindTexture(GL_TEXTURE_2D, texture->id);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1985,7 +1390,7 @@ void gfxTexBlit(const texture_t *texture, int x1, int y1) {
     glEnd();
 }
 
-void gfxTexBlitSub(const texture_t *texture, int tx1, int ty1, int tx2, int ty2,
+void gfxTexBlitSub(texture_t *texture, int tx1, int ty1, int tx2, int ty2,
 				   int x1, int y1, int x2, int y2) {
 	float u1, v1, u2, v2;
 
@@ -2009,7 +1414,7 @@ void gfxTexBlitSub(const texture_t *texture, int tx1, int ty1, int tx2, int ty2,
 	glEnd();
 }
 
-void gfxTexTile(const texture_t *texture, int tx1, int ty1, int tx2, int ty2,
+void gfxTexTile(texture_t *texture, int tx1, int ty1, int tx2, int ty2,
 			    int x1, int y1, int x2, int y2) {
 	tx2++;
 	ty2++;
@@ -2067,7 +1472,7 @@ void gfxTexTile(const texture_t *texture, int tx1, int ty1, int tx2, int ty2,
 	}
 }
 
-void gfxSpriteBlit(const flubSprite_t *sprite, int num, int x, int y) {
+void gfxSpriteBlit(flubSprite_t *sprite, int num, int x, int y) {
 	int row = num / sprite->spritesPerRow;
 	int column = num % sprite->spritesPerRow;
 	int tx1, ty1, tx2, ty2;
@@ -2081,7 +1486,7 @@ void gfxSpriteBlit(const flubSprite_t *sprite, int num, int x, int y) {
 				  x + sprite->width, y + sprite->height);
 }
 
-void gfxSpriteBlitResize(const flubSprite_t *sprite, int num, int x1, int y1,
+void gfxSpriteBlitResize(flubSprite_t *sprite, int num, int x1, int y1,
 						 int x2, int y2) {
 	int row = num / sprite->spritesPerRow;
 	int column = num % sprite->spritesPerRow;
@@ -2381,73 +1786,6 @@ void gfxSliceBlit(flubSlice_t *slice, int x1, int y1, int x2, int y2) {
     _gfxSliceBlit(_gfxSliceImmediateBlit, NULL, slice, x1, y1, x2, y2);
 }
 
-#if 0
-void gfxSliceBlit(const flubSlice_t *slice, int x1, int y1, int x2, int y2) {
-	int ref, dim[2][6], x, y;
-
-	if(slice->texture->id == 0) {
-		return;
-	}
-
-	if(slice->locked & GFX_X_LOCKED) {
-		x2 = x1 + slice->width;
-	} else if((x2 - x1) < slice->width) {
-		x2 += slice->width - ( x2 - x1 );
-	} if(slice->locked & GFX_Y_LOCKED) {
-		y2 = y1 + slice->width;
-	} else if((y2 - y1) < slice->height) {
-		y2 += slice->height - (y2 - y1);
-	}
-
-	dim[GFX_X_COORDS][0] = x1;
-	dim[GFX_Y_COORDS][0] = y1;
-	dim[GFX_X_COORDS][1] = x1 + slice->xPre;
-	dim[GFX_Y_COORDS][1] = y1 + slice->yPre;
-	dim[GFX_X_COORDS][2] = x2 - slice->xPost;
-	dim[GFX_Y_COORDS][2] = y2 - slice->yPost;
-	dim[GFX_X_COORDS][3] = x2;
-	dim[GFX_Y_COORDS][3] = y2;
-
-	glBindTexture(GL_TEXTURE_2D, slice->texture->id);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glLoadIdentity();
-	for(y = 0; y < 3; y++) {
-		if((y > 0) && (slice->tcoords[GFX_Y_COORDS][y] == slice->tcoords[GFX_Y_COORDS][y - 1])) {
-			continue;
-		}
-		for(x = 0; x < 3; x++) {
-			if((x > 0) && (slice->tcoords[GFX_X_COORDS][x] == slice->tcoords[GFX_X_COORDS][x - 1])) {
-				continue;
-			}
-			glBegin( GL_QUADS );
-				glTexCoord2f(slice->tcoords[GFX_X_COORDS][x],
-							 slice->tcoords[GFX_Y_COORDS][y]);
-				glVertex2i(dim[GFX_X_COORDS][x],
-						   dim[GFX_Y_COORDS][y]);
-				glTexCoord2f(slice->tcoords[GFX_X_COORDS][x + 1],
-							 slice->tcoords[GFX_Y_COORDS][y]);
-				glVertex2i(dim[GFX_X_COORDS][x + 1],
-						   dim[GFX_Y_COORDS][ y]);
-				glTexCoord2f(slice->tcoords[GFX_X_COORDS][x + 1],
-							 slice->tcoords[GFX_Y_COORDS][y + 1]);
-				glVertex2i(dim[GFX_X_COORDS][ x + 1],
-						   dim[GFX_Y_COORDS][ y + 1]);
-				glTexCoord2f(slice->tcoords[GFX_X_COORDS][x],
-							 slice->tcoords[GFX_Y_COORDS][y + 1]);
-				glVertex2i(dim[GFX_X_COORDS][x],
-						   dim[GFX_Y_COORDS][y + 1]);
-			glEnd();
-			if((x == 0) && (slice->locked & GFX_Y_LOCKED)) {
-				break;
-			}
-		}
-		if(slice->locked & GFX_X_LOCKED) {
-			break;
-		}
-	}
-}
-#endif
 
 #if 0
 void gfxKeycapBlit(font_t *font, const char *caption, int x, int y,
@@ -2608,6 +1946,32 @@ void gfxBlitKeyStr(font_t *font, const char *str, int x, int y, int *width, int 
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
 int gfxTexMeshBlit2(gfxMeshObj2_t *mesh, const texture_t *texture, int x1, int y1) {
 	gfxMeshObj2_t *target;
 
@@ -3007,7 +2371,7 @@ void gfxMeshRangeAlphaSet2(gfxMeshObj2_t *mesh, int start, int end, float alpha)
 	}
 	mesh->dirty = 1;
 }
-
+#endif
 /*
 typedef void (*gfxEffectCB_t)(gfxEffect_t *effect, void *context);
 typedef void (*gfxEffectCleanupCB_t)(void *context);
@@ -3045,6 +2409,8 @@ static void _gfxEffectCleanup(void *context) {
 }
 
 */
+
+#if 0
 
 static void _gfxEffectCommonCleanup(void *context) {
 	util_free(context);
@@ -3165,8 +2531,10 @@ void gfxEffectUnregister(gfxEffect_t *effect) {
 		}
 	}
 }
+#endif
 
 void gfxUpdate(Uint32 ticks) {
+#if 0
 	gfxEffect_t *effect, *last, *next, *walk;
 
 	for(effect = _gfxCtx.activeEffects; effect != NULL; effect = next) {
@@ -3199,5 +2567,502 @@ void gfxUpdate(Uint32 ticks) {
 			}
 		}
 	}
+#endif
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+static void _gfxMeshReinit(gfxMeshObj2_t *mesh) {
+    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+        glGenBuffers(3, mesh->vboId);
+    } else {
+        glGenBuffers(2, mesh->vboId);
+    }
+    mesh->dirty = 1;
+}
+
+gfxMeshObj2_t *gfxMeshCreate2(int triCount, int flags, const texture_t *texture) {
+    gfxMeshObj2_t *mesh;
+
+    mesh = util_alloc(sizeof(gfxMeshObj2_t), NULL);
+    memset(mesh, 0, sizeof(gfxMeshObj2_t));
+    mesh->flags = flags;
+    mesh->length = MESH_TRIANGLE_SIZE(triCount);
+    mesh->dirty = 1;
+    mesh->texture = texture;
+    mesh->red = 1.0;
+    mesh->green = 1.0;
+    mesh->blue = 1.0;
+    mesh->alpha = 1.0;
+    mesh->program = _gfxCtx.simpleProgram;
+
+    if(flags & GFX_MESH_FLAG_COLOR) {
+        glGenBuffers(3, mesh->vboId);
+        mesh->vboColors = util_alloc((mesh->length * sizeof(VBOColor_t)), NULL);
+    } else {
+        glGenBuffers(2, mesh->vboId);
+    }
+
+    mesh->vboVertices = util_alloc((mesh->length * sizeof(VBOVertexPos2D_t)), NULL);
+    mesh->vboTexCoords = util_alloc((mesh->length * sizeof(VBOTexCoord_t)), NULL);
+
+    if(_gfxCtx.meshList == NULL) {
+        _gfxCtx.meshList = mesh;
+    } else {
+        mesh->_gfx_mgr_next = _gfxCtx.meshList;
+        if(mesh->_gfx_mgr_next != NULL) {
+            mesh->_gfx_mgr_next->_gfx_mgr_prev = mesh;
+        }
+        mesh->_gfx_mgr_prev = NULL;
+        _gfxCtx.meshList = mesh;
+    }
+
+    return mesh;
+}
+
+void gfxMeshDestroy2(gfxMeshObj2_t *mesh) {
+    if(mesh == NULL) {
+        return;
+    }
+
+    if(mesh->_gfx_mgr_prev == NULL) {
+        _gfxCtx.meshList = mesh->_gfx_mgr_next;
+        if(_gfxCtx.meshList != NULL) {
+            _gfxCtx.meshList->_gfx_mgr_prev = NULL;
+        }
+    } else {
+        mesh->_gfx_mgr_prev->_gfx_mgr_next = mesh->_gfx_mgr_next;
+        if(mesh->_gfx_mgr_next != NULL) {
+            mesh->_gfx_mgr_next->_gfx_mgr_prev = mesh->_gfx_mgr_prev;
+        }
+    }
+
+    if(mesh->next != NULL) {
+        errorf("Mesh object freed with active chain pointer.");
+    }
+    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+        glDeleteBuffersARB(3, mesh->vboId);
+        util_free(mesh->vboColors);
+    } else {
+        glDeleteBuffersARB(2, mesh->vboId);
+    }
+    util_free(mesh->vboVertices);
+    util_free(mesh->vboTexCoords);
+}
+
+void gfxMeshInitCBSet(gfxMeshObj2_t *mesh, gfxMeshInitCB_t initCB, void *context) {
+    mesh->initCB = initCB;
+    mesh->context = context;
+}
+
+void gfxMeshClear2(gfxMeshObj2_t *mesh) {
+    if(mesh == NULL) {
+        return;
+    }
+    mesh->pos = 0;
+    mesh->dirty = 1;
+}
+
+void gfxMeshTextureAssign2(gfxMeshObj2_t *mesh, const texture_t *texture) {
+    if(mesh == NULL) {
+        return;
+    }
+    mesh->texture = texture;
+}
+
+void gfxMeshDefaultColor2(gfxMeshObj2_t *mesh, float red, float green,
+                          float blue, float alpha) {
+    if(mesh == NULL) {
+        return;
+    }
+    mesh->red = red;
+    mesh->green = green;
+    mesh->blue = blue;
+    mesh->alpha = alpha;
+}
+
+void gfxMeshPrependToChain2(gfxMeshObj2_t **chain, gfxMeshObj2_t *mesh) {
+    gfxMeshObj2_t *walk;
+
+    if((mesh == NULL) || (chain == NULL)) {
+        return;
+    }
+
+    mesh->next = *chain;
+    *chain = mesh;
+}
+
+void gfxMeshAppendToChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh) {
+    gfxMeshObj2_t *walk;
+
+    if((mesh == NULL) || (chain == NULL)) {
+        return;
+    }
+
+    for(walk = chain; walk->next != NULL; walk = walk->next);
+
+    walk->next = mesh;
+    mesh->prev = walk;
+}
+
+void gfxMeshRemoveFromChain2(gfxMeshObj2_t *chain, gfxMeshObj2_t *mesh) {
+    gfxMeshObj2_t *walk, *last = NULL;
+
+    if(mesh == NULL) {
+        return;
+    }
+
+    // Remove a mesh from the mesh chain
+    if(chain == mesh) {
+        warning("Cannot free mesh from the chain that it heads.");
+        return;
+    }
+    for(walk = chain; walk != NULL; last = walk, walk = walk->next) {
+        if(walk == mesh) {
+            last->next = mesh->next;
+            if(mesh->next != NULL) {
+                mesh->next->prev = last;
+            }
+            return;
+        }
+    }
+    warning("Cannot free mesh from chain it is not a member of.");
+}
+
+gfxMeshObj2_t *gfxMeshFindMeshInChain2(gfxMeshObj2_t *mesh, const texture_t *texture) {
+    gfxMeshObj2_t *walk;
+
+    if(mesh == NULL) {
+        return NULL;
+    }
+
+    for(walk = mesh; walk != NULL; walk = walk->next) {
+        if(walk->texture == texture) {
+            return walk;
+        }
+    }
+    return NULL;
+}
+
+void gfxMeshRender2(gfxMeshObj2_t *mesh) {
+    if(mesh == NULL) {
+        return;
+    }
+
+    gfxMeshRender2(mesh->next);
+
+    if(mesh->initCB != NULL) {
+        mesh->initCB(mesh->context);
+    }
+
+    glUseProgram(mesh->program);
+
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    if(mesh->dirty) {
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+        glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOVertexPos2D_t), mesh->vboVertices, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_TEXTURE_ID]);
+        glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOTexCoord_t), mesh->vboTexCoords, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+            glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
+            glBufferData(GL_ARRAY_BUFFER, mesh->pos * sizeof(VBOColor_t), mesh->vboColors, GL_DYNAMIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+
+        mesh->dirty = 0;
+    }
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_VERTEX_ID]);
+    glVertexPointer(2, GL_INT, 0, (void*)(0));
+
+    glBindTexture(GL_TEXTURE_2D, mesh->texture->id);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_TEXTURE_ID]);
+    glTexCoordPointer(2, GL_FLOAT, 0, (void*)(0));
+
+    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+        glEnableClientState(GL_COLOR_ARRAY);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh->vboId[GFX_MESH_VBO_COLOR_ID]);
+        glColorPointer(4, GL_FLOAT, 0, (void*)(0));
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glDrawArrays(GL_TRIANGLES, 0, mesh->pos);
+
+    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+        glDisableClientState(GL_COLOR_ARRAY);
+    }
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
+
+    glUseProgram(0);
+}
+
+
+void gfxMeshQuad2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
+                  float s1, float t1, float s2, float t2) {
+    gfxMeshQuadAtPos2(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2, s1, t1, s2, t2);
+}
+
+void gfxMeshQuadAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
+                       int x1, int y1, int x2, int y2,
+                       float s1, float t1, float s2, float t2) {
+    int k;
+    VBOColor_t *color;
+    VBOVertexPos2D_t *vertex;
+    VBOTexCoord_t *texture;
+
+    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+        color = mesh->vboColors + pos;
+        for(k = 0; k < 6; k++) {
+            color->r = mesh->red;
+            color->g = mesh->green;
+            color->b = mesh->blue;
+            color->a = mesh->alpha;
+            color++;
+        }
+    }
+
+    vertex = mesh->vboVertices + pos;
+    texture = mesh->vboTexCoords + pos;
+
+    // Triangle 1, vertex 1
+    vertex->x = x1;
+    vertex->y = y1;
+    texture->s = s1;
+    texture->t = t1;
+    vertex++;
+    texture++;
+
+    // Triangle 1, vertex 2
+    vertex->x = x2;
+    vertex->y = y1;
+    texture->s = s2;
+    texture->t = t1;
+    vertex++;
+    texture++;
+
+    // Triangle 1, vertex 3
+    vertex->x = x1;
+    vertex->y = y2;
+    texture->s = s1;
+    texture->t = t2;
+    vertex++;
+    texture++;
+
+    // Triangle 2, vertex 1
+    vertex->x = x2;
+    vertex->y = y1;
+    texture->s = s2;
+    texture->t = t1;
+    vertex++;
+    texture++;
+
+    // Triangle 2, vertex 2
+    vertex->x = x2;
+    vertex->y = y2;
+    texture->s = s2;
+    texture->t = t2;
+    vertex++;
+    texture++;
+
+    // Triangle 2, vertex 3
+    vertex->x = x1;
+    vertex->y = y2;
+    texture->s = s1;
+    texture->t = t2;
+
+    if(last != NULL) {
+        *last = pos + 6;
+    }
+
+    mesh->dirty = 1;
+}
+
+void gfxMeshQuadColor2(gfxMeshObj2_t *mesh, int x1, int y1, int x2, int y2,
+                       float s1, float t1, float s2, float t2,
+                       float red, float green, float blue, float alpha) {
+    gfxMeshQuadColorAtPos2(mesh, mesh->pos, &(mesh->pos), x1, y1, x2, y2,
+                           s1, t1, s2, t2, red, green, blue, alpha);
+}
+
+void gfxMeshQuadColorAtPos2(gfxMeshObj2_t *mesh, int pos, int *last,
+                            int x1, int y1, int x2, int y2,
+                            float s1, float t1, float s2, float t2,
+                            float red, float green, float blue, float alpha) {
+    int k;
+    VBOColor_t *color;
+    VBOVertexPos2D_t *vertex;
+    VBOTexCoord_t *texture;
+
+    if(mesh->flags & GFX_MESH_FLAG_COLOR) {
+        color = mesh->vboColors + pos;
+        for(k = 0; k < 6; k++) {
+            color->r = red;
+            color->g = green;
+            color->b = blue;
+            color->a = alpha;
+            color++;
+        }
+    }
+
+    vertex = mesh->vboVertices + pos;
+    texture = mesh->vboTexCoords + pos;
+
+    // Triangle 1, vertex 1
+    vertex->x = x1;
+    vertex->y = y1;
+    texture->s = s1;
+    texture->t = t1;
+    vertex++;
+    texture++;
+
+    // Triangle 1, vertex 2
+    vertex->x = x2;
+    vertex->y = y1;
+    texture->s = s2;
+    texture->t = t1;
+    vertex++;
+    texture++;
+
+    // Triangle 1, vertex 3
+    vertex->x = x1;
+    vertex->y = y2;
+    texture->s = s1;
+    texture->t = t2;
+    vertex++;
+    texture++;
+
+    // Triangle 2, vertex 1
+    vertex->x = x2;
+    vertex->y = y1;
+    texture->s = s2;
+    texture->t = t1;
+    vertex++;
+    texture++;
+
+    // Triangle 2, vertex 2
+    vertex->x = x2;
+    vertex->y = y2;
+    texture->s = s2;
+    texture->t = t2;
+    vertex++;
+    texture++;
+
+    // Triangle 2, vertex 3
+    vertex->x = x1;
+    vertex->y = y2;
+    texture->s = s1;
+    texture->t = t2;
+
+    if(last != NULL) {
+        *last = pos + 6;
+    }
+
+    mesh->dirty = 1;
+}
+
+#endif

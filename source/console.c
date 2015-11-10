@@ -65,8 +65,8 @@ struct {
 	font_t *font;
 	font_t *cmdFont;
 	circularBuffer_t *circbuf;
-	gfxMeshObj2_t *mesh;
-	gfxMeshObj2_t *cmdMesh;
+	gfxMeshObj_t *mesh;
+	gfxMeshObj_t *cmdMesh;
 
     sound_t *openSound;
     sound_t *closeSound;
@@ -203,11 +203,11 @@ int consoleStart(void) {
         return 0;
     }
 
-    if((_consoleCtx.mesh = gfxMeshCreate2(FLUB_CONSOLE_MESH_SIZE, GFX_MESH_FLAG_COLOR, fontTextureGet(_consoleCtx.font))) == NULL) {
+    if((_consoleCtx.mesh = gfxMeshCreate(FLUB_CONSOLE_MESH_SIZE, GL_TRIANGLES, 1, fontTextureGet(_consoleCtx.font))) == NULL) {
         return 0;
     }
 
-    if((_consoleCtx.cmdMesh = gfxMeshCreate2(FLUB_CONSOLE_CMD_MESH_SIZE, GFX_MESH_FLAG_COLOR, fontTextureGet(_consoleCtx.cmdFont))) == NULL) {
+    if((_consoleCtx.cmdMesh = gfxMeshCreate(FLUB_CONSOLE_CMD_MESH_SIZE, GL_TRIANGLES, 1, fontTextureGet(_consoleCtx.cmdFont))) == NULL) {
         return 0;
     }
 
@@ -420,7 +420,7 @@ static void _consoleCmdMeshRebuild(void) {
 
 	y = _consoleCtx.height - fontGetHeight(_consoleCtx.font);
 
-	gfxMeshClear2(_consoleCtx.cmdMesh);
+	gfxMeshClear(_consoleCtx.cmdMesh);
 	fontPos(0, y);
 	fontSetColor(0.0, 1.0, 0.0);
 	if(_consoleCtx.offset) { // content is scrolled
@@ -481,12 +481,12 @@ int consoleUpdate(Uint32 ticks) {
 		// Draw the console text
 		glLoadIdentity();
 	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
-		gfxMeshRender2(_consoleCtx.mesh);
+		gfxMeshRender(_consoleCtx.mesh);
 
 		// Draw the console input field
 		glLoadIdentity();
 	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
-		gfxMeshRender2(_consoleCtx.cmdMesh);
+		gfxMeshRender(_consoleCtx.cmdMesh);
 	}
 }
 
@@ -549,7 +549,7 @@ static void _consoleMeshRebuild(void) {
         scroll = 0;
     }
 
-	gfxMeshClear2(_consoleCtx.mesh);
+	gfxMeshClear(_consoleCtx.mesh);
 	fontSetColor(1.0, 1.0, 1.0);
 	pos = _consoleCtx.height - (fontGetHeight(_consoleCtx.font) * 2);
 	for(line = count - 1; lines; line--) {

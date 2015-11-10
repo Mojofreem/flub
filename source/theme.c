@@ -1303,7 +1303,7 @@ flubGuiThemeComponents_t *flubGuiThemeComponentGetById(flubGuiTheme_t *theme, in
     return component;
 }
 
-void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj2_t *mesh,
+void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj_t *mesh,
                       Uint32 *ticks, int x1, int y1, int x2, int y2) {
     int w, h;
     int delay, walk;
@@ -1314,7 +1314,7 @@ void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj2_t *mesh,
         default:
             return;
         case eFlubGuiBitmap:
-            gfxTexMeshBlitSub2(mesh, fragment->bitmap.texture,
+            gfxTexMeshBlitSub(mesh, fragment->bitmap.texture,
                               fragment->bitmap.x1, fragment->bitmap.y1,
                               fragment->bitmap.x2, fragment->bitmap.y2,
                               x1, y1, x2, y2);
@@ -1336,20 +1336,20 @@ void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj2_t *mesh,
                     bmpFrame = fragment->animBitmap.frames;
                 }
             }
-            gfxTexMeshBlitSub2(mesh, fragment->animBitmap.texture,
+            gfxTexMeshBlitSub(mesh, fragment->animBitmap.texture,
                               bmpFrame->x, bmpFrame->y,
                               bmpFrame->x + fragment->animBitmap.width,
                               bmpFrame->y + fragment->animBitmap.height,
                               x1, y1, x2, y2);
             break;
         case eFlubGuiTile:
-            gfxTexMeshTile2(mesh, fragment->bitmap.texture,
+            gfxTexMeshTile(mesh, fragment->bitmap.texture,
                            fragment->bitmap.x1, fragment->bitmap.y1,
                            fragment->bitmap.x2, fragment->bitmap.y2,
                            x1, y1, x2, y2);
             break;
         case eFlubGuiSlice:
-            gfxSliceMeshBlit2(mesh, fragment->slice, x1, y1, x2, y2);
+            gfxSliceMeshBlit(mesh, fragment->slice, x1, y1, x2, y2);
             break;
         case eFlubGuiAnimSlice:
             sliceFrame = fragment->animSlice.frames;
@@ -1368,7 +1368,7 @@ void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj2_t *mesh,
                     sliceFrame = fragment->animSlice.frames;
                 }
             }
-            gfxSliceMeshBlit2(mesh, sliceFrame->slice, x1, y1, x2, y2);
+            gfxSliceMeshBlit(mesh, sliceFrame->slice, x1, y1, x2, y2);
             break;
     }
 }

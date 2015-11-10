@@ -334,7 +334,7 @@ flubGuiThemeFragment_t *flubGuiThemeFragmentGetById(flubGuiTheme_t *theme, int i
 flubGuiThemeComponents_t *flubGuiThemeComponentGetByName(flubGuiTheme_t *theme, const char *name);
 flubGuiThemeComponents_t *flubGuiThemeComponentGetById(flubGuiTheme_t *theme, int id);
 
-void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj2_t *mesh,
+void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj_t *mesh,
                       Uint32 *ticks, int x1, int y1, int x2, int y2);
 
 

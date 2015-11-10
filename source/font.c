@@ -12,7 +12,7 @@
 
 typedef struct fontIndex_s {
     GLuint list;    // Used for simplified direct blitting
-    const texture_t *texture;
+    texture_t *texture;
     int useCount;
     flubStbFont_t stbfont;
     char *filename;
@@ -1172,12 +1172,15 @@ void fontBlitFloat(font_t *font, float num, int decimals) {
 // Mesh enabled font blitters
 ///////////////////////////////////////////////////////////////////////////////
 
-#define BLIT_QUAD_TO_MESH(m,g)  gfxMeshQuadColor2((m), fontCtx.x + (g)->x0, fontCtx.y + (g)->y0, fontCtx.x + (g)->x1, fontCtx.y + (g)->y1, \
-                                                 (g)->s0, (g)->t0, (g)->s1, (g)->t1,    \
-                                                 fontCtx.red, fontCtx.green, fontCtx.blue, fontCtx.alpha)
+//#define BLIT_QUAD_TO_MESH(m,g)  gfxMeshQuadColor2((m), fontCtx.x + (g)->x0, fontCtx.y + (g)->y0, fontCtx.x + (g)->x1, fontCtx.y + (g)->y1, \
+//                                                 (g)->s0, (g)->t0, (g)->s1, (g)->t1,    \
+//                                                 fontCtx.red, fontCtx.green, fontCtx.blue, fontCtx.alpha)
+
+#define BLIT_QUAD_TO_MESH(m,g)  gfxBlitQuadToMesh((m),  fontCtx.x + (g)->x0, fontCtx.y + (g)->y0, fontCtx.x + (g)->x1, fontCtx.y + (g)->y1, \
+                                                 (g)->s0, (g)->t0, (g)->s1, (g)->t1)
 
 
-void fontBlitCMesh(gfxMeshObj2_t *mesh, font_t *font, char c) {
+void fontBlitCMesh(gfxMeshObj_t *mesh, font_t *font, char c) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
 
@@ -1195,7 +1198,7 @@ void fontBlitCMesh(gfxMeshObj2_t *mesh, font_t *font, char c) {
 }
 
 
-void fontBlitStrMesh(gfxMeshObj2_t *mesh, font_t *font, const char *s) {
+void fontBlitStrMesh(gfxMeshObj_t *mesh, font_t *font, const char *s) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
 
@@ -1215,7 +1218,7 @@ void fontBlitStrMesh(gfxMeshObj2_t *mesh, font_t *font, const char *s) {
     }
 }
 
-void fontBlitStrNMesh(gfxMeshObj2_t *mesh, font_t *font, char *s, int len) {
+void fontBlitStrNMesh(gfxMeshObj_t *mesh, font_t *font, char *s, int len) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
     int count;
@@ -1241,7 +1244,7 @@ void fontBlitStrNMesh(gfxMeshObj2_t *mesh, font_t *font, char *s, int len) {
     }
 }
 
-void fontBlitStrfMesh(gfxMeshObj2_t *mesh, font_t *font, char *fmt, ...) {
+void fontBlitStrfMesh(gfxMeshObj_t *mesh, font_t *font, char *fmt, ...) {
     char buf[1024];
     va_list ap;
 
@@ -1259,7 +1262,7 @@ void fontBlitStrfMesh(gfxMeshObj2_t *mesh, font_t *font, char *fmt, ...) {
     fontBlitStrMesh(mesh, font, buf);
 }
 
-void fontBlitQCStrMesh(gfxMeshObj2_t *mesh, font_t *font, char *s) {
+void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
     float red, green, blue;
@@ -1325,7 +1328,7 @@ void fontBlitQCStrMesh(gfxMeshObj2_t *mesh, font_t *font, char *s) {
     }
 }
 
-void fontBlitIntMesh(gfxMeshObj2_t *mesh, font_t *font, int num) {
+void fontBlitIntMesh(gfxMeshObj_t *mesh, font_t *font, int num) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
     char c;
@@ -1361,7 +1364,7 @@ void fontBlitIntMesh(gfxMeshObj2_t *mesh, font_t *font, int num) {
     }
 }
 
-void fontBlitFloatMesh(gfxMeshObj2_t *mesh, font_t *font, float num, int decimals) {
+void fontBlitFloatMesh(gfxMeshObj_t *mesh, font_t *font, float num, int decimals) {
     char buf[32];
 
     mesh->program = fontCtx.stbfontProgram;
@@ -1388,7 +1391,7 @@ void fontPos(int x, int y) {
     fontCtx.y = y;
 }
 
-const texture_t *fontTextureGet(font_t *font) {
+texture_t *fontTextureGet(font_t *font) {
     fontIndex_t *work = (fontIndex_t *)font;
 
     return work->texture;
