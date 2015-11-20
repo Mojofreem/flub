@@ -951,7 +951,8 @@ int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
 
 void fontSetColor(float red, float green, float blue) {
     // Set the openGL color, and store the value for vba mesh operations
-	glColor3f(red, green, blue);
+    gfxColorSet(red, green, blue);
+	//glColor3f(red, green, blue);
     fontCtx.red = red;
     fontCtx.green = green;
     fontCtx.blue = blue;
@@ -959,7 +960,9 @@ void fontSetColor(float red, float green, float blue) {
 
 void fontSetColorAlpha(float red, float green, float blue, float alpha) {
     // Set the openGL color, and store the value for vba mesh operations
-    glColor3f(red, green, blue);
+    gfxColorSet(red, green, blue);
+    gfxAlphaSet(alpha);
+    //glColor3f(red, green, blue);
     fontCtx.red = red;
     fontCtx.green = green;
     fontCtx.blue = blue;

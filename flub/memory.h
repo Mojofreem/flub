@@ -5,6 +5,10 @@
 #include <stddef.h>
 
 
+int memInit(void);
+void memShutdown(void);
+
+
 void util_outofmemory( void ) __attribute__((noreturn));
 
 void *util_alloc( size_t size, void *src );
@@ -31,6 +35,15 @@ struct memPool_s {
 memPool_t *memPoolCreate(size_t size, int preAllocate);
 void *memPoolAlloc(memPool_t *pool);
 void memPoolFree(memPool_t *pool, void *ptr);
+
+
+int memFrameStackInit(size_t size);
+int memFrameStackBegin(void);
+void memFrameStackEnd(int id);
+void *memFrameStackAlloc(size_t size);
+void memFrameStackStats(void);
+size_t memFrameStackSize(void);
+void memFrameStackReset(void);
 
 
 #endif // _FLUB_MEMORY_HEADER_

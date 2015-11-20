@@ -73,5 +73,19 @@ void fontPos(int x, int y);
 
 texture_t *fontTextureGet(font_t *font);
 
+/*
+ * Update the font generator tool to allow splicing fonts
+ * Find/create keyboard supplemental font:
+ *      windows key
+ *      menu key
+ *      option key (osx)
+ *      command key (osx)
+ *      tab arrow
+ *      return arrow
+ *      arrow keys
+ *      caps glyph
+ *      scroll lock glyph
+ *      numlock glyph
+ */
 
 #endif // _FLUB_FONT_HEADER_

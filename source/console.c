@@ -195,7 +195,7 @@ int consoleStart(void) {
         return 0;
     }
 
-    if((_consoleCtx.font = fontGet("courier", 12, 0)) == NULL) {
+    if((_consoleCtx.font = fontGet("courier", 12, 1)) == NULL) {
         return 0;
     }
 

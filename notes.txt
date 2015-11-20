@@ -1,0 +1,328 @@
+Update font conversion tool to allow splicing fonts
+    renumber glyphs
+    transpose glyphs from multiple fonts
+    QT wrapper for realtime preview of font conversion
+Draw extended system keyboard glyphs in illustrator
+Convert illustrator glyphs to keyboard font
+Create keyboard font stbfont
+Write keycap texture generator
+Update gfx api for keycap drawing
+Replace fixed meta table with dynamic API
+Update console API:
+    command hinting
+    parameter hinting
+    parameter validation
+    columnar output
+    tabular output
+    color coded logging
+widget API redux
+    revisit widget assumptions
+    seperate out:
+        widget logic
+        render logic
+            includes themeing
+        ui templates
+        layout logic
+            transitions/animation
+    design widget API/interaction
+    design render API
+    design layout API
+    implement theming
+    implement rendering
+    implement widgets
+    implement layout
+slices
+    asset definition
+    load from asset name
+unified asset definition file
+    define textures/fonts/slices/tilesets/ui templates
+    validate object presence at startup
+
+
+
+<texture file="..." name="..." minfilter="..." magfilter="..." colorkey="..."/>
+<font file="..." name="..." size="#"/>
+<image texture="..." name="..." x="#" y="#" width="#" height="#" tiled="yes|no"/>
+<animation texture="..." name="..." width="#" height="#">
+    <frame x="#" y="#" delay="#"/>
+    ...
+</animation>
+<tiles image="..." width="" height=""/>
+<slice texture="..." name="..." x1="" y1="" x2="" y2="" x3="" y3="" x4="" y4=""/>
+<color name="..." value=""/>
+<style name="..." font="..." size="..." color="..."/>
+
+
+<cell>
+<layout dir="horz|vert">
+</layout>
+</cell>
+
+<component name="">
+    <state type="default|focus|hover|disabled
+    <cell .../>
+</component>
+
+<cell width="" height="" color="" asset="">
+
+visible
+minwidth
+width
+maxwidth
+minheight
+height
+maxheight
+widthpolicy
+heightpolicy
+margin
+    right
+    bottom
+    left
+    top
+padding
+    top
+    right
+    bottom
+    left
+
+</cell>
+
+//////////////////////////////////////////////////////////////////////////////
+
+There are 4 effective states for UI elements:
+    enabled [disabled]
+    focus   [no focus]
+    pressed [released] (also checked/enabled/toggled)
+    hover   [no hover]
+
+    Focus and hover are not valid for the disabled state, so there are
+    effectively 8 maximum possible valid states for each UI element.
+
+        -  F P H E
+    0
+    1            1
+    2   x      1
+    3          1 1
+    4        1
+    5        1   1
+    6   x    1 1
+    7        1 1 1
+    8   x  1
+    9      1     1
+    10  x  1   1
+    11  x  1   1 1
+    12  x  1 1
+    13     1 1   1
+    14  x  1 1 1
+    15  x  1 1 1 1
+
+
+
+
+
+typedef enum {
+    eFlubThemeFont,
+    eFlubThemeImage,
+    eFlubThemeTile,
+    eFlubThemeSlice,
+    eFlubThemeColor,
+    eFlubThemeStyle
+} eFlubThemeResType_t;
+
+typedef enum {
+    eFlubThemePolicyFixed,
+    eFlubThemePolicyMinimum,
+    eFlubThemePolicyMaximum,
+    eFlubThemePolicyPreferred,
+    eFlubThemePolicyExpanding,
+    eFlubThemePolicyMinExpanding,
+    eFlubThemePolicyIgnored
+} eFlubThemeSizePolicy_t;
+
+typedef enum {
+    eFlubThemeLayoutHorz,
+    eFlubThemeLayoutVert,
+} eFlubThemeLayoutMode_t;
+
+typedef struct flubThemeAnimFrame_s {
+    int x;
+    int y;
+    int delay;
+} flubThemeAnimFrame_t;
+
+typedef struct flubThemeAnimation_s {
+    texture_t *texture;
+    int width;
+    int height;
+    int count;
+    flubThemeAnimFrame_t frame[0]
+}
+
+// Fragment manager
+typedef struct flubThemeFragment_s {
+    eFlubThemeResType_t type;
+    union {
+        font_t *font;
+        texture_t *texture;
+        struct {
+            texture_t *texture;
+            int x1, y1, x2, y2;
+        } image;
+        flubSprite_t *tiles;
+        flubSlice_t *slice;
+        unsigned long color;
+        struct {
+            font_t *font;
+            unsigned long color;
+        } style;
+        flubThemeAnimation_t animation;
+    }
+} flubThemeFragment_t;
+
+// Components
+typedef struct flubThemeCell_s {
+    int minwidth;
+    int minheight;
+    int maxwidth;
+    int maxheight;
+    int id;
+    eFlubThemeSizePolicy_t widthPolicy;
+    eFlubThemeSizePolicy_t heightPolicy;
+    eFlubThemeLayoutMode_t layout;
+    flubThemeFragment_t *fragment;
+    struct flubThemeCell_s *next;
+    struct flubThemeCell_s *child;
+} flubThemeCell_t;
+
+typedef struct flubTheme_s {
+    char *name;
+    critbit_t fragments;
+    critbit_t components;
+} flubTheme_t;
+
+
+minwidth  minheight  maxwidth  maxheight  policy  resource  name  layout
+width/height values:
+    \d+       pixel value
+    RESOURCE  resource fragment size
+    \d+%      percentage of available space
+policy:
+    fixed
+    minimum
+    maximum
+    preferred
+    expanding
+    minexpanding
+    ignored
+resource:
+    image
+    tiles:#
+    slice
+layout:
+    horz
+    vert
+
+<component id="#" minwidth="#" minheight="#" maxwidth="#" maxheight="#" layout="horz|vert" widthpolicy="..." heightpolicy="..." resource="...">
+<component name="..." minwidth="#" minheight="#" maxwidth="#" maxheight="#">
+    <cell ...>
+    </cell>
+    <layout dir="horz|vert" name="..."
+</component>
+
+
+<layout dir="horz|vert|grid" minwidth="#" minheight="#" maxwidth="#" maxheight="#" resource="..." fill="..." id="...">
+    <row>
+        <column>
+        </column>
+    </row>
+</layout>
+
+
+            CanGrow   CanShrink   WantsToGrow
+Fixed         No         No           No
+Minimum       Yes        No           No
+Maximum       No         Yes          No
+Preferred     Yes        Yes          No
+Expanding     Yes        Yes          Yes
+MinExpanding  Yes        No           Yes
+Ignored       Yes        Yes          Yes
+
+
+raw assets
+    image fragments
+    color
+    font
+    sounds
+    transitions
+        image animation
+        position/size animation
+        alpha/color fade
+        sound play/volume
+
+cell
+    basic renderable piece
+
+layout
+    coordinated collection of cells
+
+template
+    ui definition populated with variables for run time instantiation
+
+
+update size/position - the size or position has been changed, and we should
+        signal to the upstream layout handler that the change has occurred
+update mesh - some functionally compatible aspect of the mesh has been
+        updated, and the changed buffers should be sync'd
+redraw mesh - a redraw of the mesh is required
+
+transition
+    position
+        2 ints
+    size
+        3 ints
+    color
+        3 floats
+    alpha
+        1 float
+    texture
+        1 ptr
+
+
+
+For each transition, we need to know the original value, the target value,
+and the variable to update.
+
+typedef struct flubAnimNode_s flubAnimNode_t;
+
+typedef int (*flubAnimHandler_t)(flubAnimNode_t *node, int ticks);
+
+
+struct flubAnimNode_s {
+    int period;
+    int progress;
+    flubAnimNode_t *next;
+    flubAnimNode_t *child;
+    unsigned char buf[0];
+};
+
+
+Theme elements
+    calculate number of tris for a given size instance
+    calculate time to sequence update, if any
+
+Instance
+    reference to theme element
+    update
+
+
+
+
+
+
+
+
+
+
+
+
+

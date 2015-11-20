@@ -29,6 +29,8 @@
 #define FLUB_THEME_MAX_STR_LEN  64
 */
 
+#if 0
+
 struct {
     int init;
     flubGuiTheme_t *themes;
@@ -74,25 +76,29 @@ static void _flubGuiThemeFree(flubGuiTheme_t *theme) {
 static void _flubGuiThemeCleanup(flubGuiTheme_t *theme) {
     // TODO
 }
+#endif
 
 int flubGuiThemeInit(void) {
+    /*
     if(_guiThemeCtx.init) {
         error("Cannot initialize the theme module multiple times.");
         return 1;
     }
-
+*/
     logDebugRegister("gui", DBG_GUI, "theme", DBG_GUI_DTL_THEME);
 
-    _guiThemeCtx.init = 1;
+//    _guiThemeCtx.init = 1;
 
     return 1;
 }
 
 int flubGuiThemeValid(void) {
-    return _guiThemeCtx.init;
+    //return _guiThemeCtx.init;
+    return 1;
 }
 
 void flubGuiThemeShutdown(void) {
+    /*
     if(!_guiThemeCtx.init) {
         return;
     }
@@ -106,8 +112,10 @@ void flubGuiThemeShutdown(void) {
 
     _guiThemeCtx.themes = NULL;
     _guiThemeCtx.init = 0;
+     */
 }
 
+#if 0
 static void _flubGuiThemeRegister(flubGuiTheme_t *theme) {
     theme->next = _guiThemeCtx.themes;
     _guiThemeCtx.themes = theme;
@@ -1051,6 +1059,13 @@ static int _themeParseFragmentEntry(const char *json, jsmntok_t *tokens, const c
     return 1;
 }
 
+#endif
+
+flubGuiTheme_t *flubGuiThemeLoad(const char *filename) {
+    return NULL;
+}
+
+#if 0
 flubGuiTheme_t *flubGuiThemeLoad(const char *filename) {
     PHYSFS_file *file;
     int len;
@@ -1409,3 +1424,4 @@ void *flubGuiThemeContextRetrieve(flubGuiTheme_t *theme, int id) {
     return NULL;
 }
 
+#endif

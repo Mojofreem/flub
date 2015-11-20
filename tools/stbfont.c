@@ -15,17 +15,245 @@
 #include "flub/3rdparty/stb/stb_image_write.h"
 #endif
 
-#define MAX_OPT_NAME_LEN    64
+#define MAX_OPT_NAME_LEN            64
+#define FONT_ERR_MSG_PRINT_BUFFER   512
 
-typedef struct
-{
-   unsigned char *bitmap;
-   int index;
-   int w,h;
-   int x0,y0;
-   int s,t;
-   int advance;
-} textchar;
+
+typedef struct textchar_s {
+    unsigned char *bitmap;
+    int index;
+    int w,h;
+    int x0,y0;
+    int s,t;
+    int advance;
+} textchar_t;
+
+typedef struct fontGlyphRange_s {
+    int start;
+    int end;
+    int remap;
+    textchar_t *fontchar;
+    struct fontGlyphRange_s *next;
+} fontGlyphRange_t;
+
+typedef struct fontDetail_s {
+    stbtt_fontinfo font;
+    unsigned char *data;
+    float scale;
+    int ascent;
+    int descent;
+    int linegap;
+    int spacing;
+    fontGlyphRange_t *range;
+    int baseGlyph;
+    int glyphCount;
+    int area;
+    struct fontDetail_s *next;
+} fontDetail_t;
+
+typedef struct fontStb_s {
+    int height;
+    fontDetail_t *fonts;
+    int baseGlyph;
+    int glyphCount;
+    unsigned int *glyphmap;
+    unsigned int *glyph_to_textchar;
+    unsigned char *image;
+    int imgWidth;
+    int imgHeight;
+} fontStb_t;
+
+
+typedef void (*errMsgFunc_t)(const char *msg);
+
+static errMsgFunc_t _errMsg;
+
+
+void fontErrMsgSet(errMsgFunc_t func) {
+    _errMsg = func;
+}
+
+void _errMsgf(const char *fmt, ...) {
+    char buf[FONT_ERR_MSG_PRINT_BUFFER];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    buf[sizeof(buf) - 1] = '\0';
+
+    _errMsg(buf);
+}
+
+fontStb_t *flubFontCreate(int height) {
+    fontStb_t *font;
+
+    if((height < 1) ||
+       (height > 600)) {
+        _errMsg("Font height must be between 1 and 200");
+        return NULL;
+    }
+    font = calloc(sizeof(fontStb_t), 1);
+    font->height = height;
+}
+
+fontDetail_t *flubFontAddFont(fontStb_t *font, const char *filename) {
+    fontDetail_t *detail;
+
+    detail = calloc(sizeof(fontDetail_t), 1);
+    detail->data = stb_file((char *)filename, NULL);
+    if(detail->data == NULL) {
+        _errMsgf("Couldn't open '%s'\n", filename);
+        return NULL;
+    }
+
+    stbtt_InitFont(&(detail->font), detail->data, 0);
+    detail->scale = stbtt_ScaleForPixelHeight(&(detail->font), font->height);
+    stbtt_GetFontVMetrics(&(detail->font), &(detail->ascent), &(detail->descent), &(detail->linegap));
+
+    detail->spacing = (int) (detail->scale * (detail->ascent + detail->descent + detail->linegap) + 0.5);
+    detail->ascent = (int) (detail->scale * detail->ascent);
+
+    detail->next = font->fonts;
+    font->fonts = detail;
+
+    return detail;
+}
+
+int flubFontCheckRangeOverlap(fontGlyphRange_t *a, fontGlyphRange_t *b) {
+    int aoffset, boffset;
+
+    aoffset = a->start - a->remap;
+    boffset = b->start - b->remap;
+    if (((b->start + boffset) >= (a->start - 1 + aoffset)) &&
+        ((b->start + boffset) <= (a->end + 1 + aoffset)) &&
+        ((b->end + boffset) >= (a->start - 1 + aoffset)) &&
+        ((b->end + boffset) <= (a->end + 1 + aoffset))) {
+        if (a->remap == a->start) {
+            if (b->remap == b->start) {
+                _errMsgf("Glyph ranges conflict (%d-%d), (%d-%d)",
+                         a->start, a->end, b->start, b->end);
+            } else {
+                _errMsgf(
+                        "Glyph ranges conflict (%d-%d), (%d-%d, remapped to %d)",
+                        a->start, a->end, b->start, b->end, b->remap);
+            }
+        } else {
+            if (b->remap == b->start) {
+                _errMsgf(
+                        "Glyph ranges conflict (%d-%d, remapped to %d), (%d-%d)",
+                        a->start, a->end, a->remap, b->start, b->end);
+            } else {
+                _errMsgf(
+                        "Glyph ranges conflict (%d-%d, remapped to %d), (%d-%d, remapped to %d)",
+                        a->start, a->end, a->remap, b->start, b->end, b->remap);
+            }
+        }
+        return 0;
+    }
+}
+
+int flubFontCheckRemapOverlap(fontDetail_t *detail) {
+    fontGlyphRange_t *walk, *next, *check;
+
+    if(detail->range == NULL) {
+        return 0;
+    }
+    for(walk = detail->range, next = walk->next;
+        next != NULL;
+        walk = next, next = next->next) {
+        for (check = next; check != NULL; check = check->next) {
+            if (!flubFontCheckRangeOverlap(walk, check)) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+int flubFontAddRange(fontDetail_t *detail, int start, int end, int remap) {
+    fontGlyphRange_t *range;
+
+    range = calloc(sizeof(fontGlyphRange_t), 1);
+    range->start = start;
+    range->end = end;
+    range->remap = remap;
+
+    range->next = detail->range;
+    detail->range = range->next;
+
+    return flubFontCheckRemapOverlap(detail);
+}
+
+void flubFontClearGenerated(fontStb_t *font) {
+    fontDetail_t *detail;
+    fontGlyphRange_t *range;
+
+    for(detail = font->fonts; detail != NULL; detail = detail->next) {
+        for(range = detail->range; range != NULL; range = range->next) {
+            free(range->fontchar);
+        }
+    }
+}
+
+int flubFontGenerate(fontStb_t *font) {
+    fontDetail_t *detail;
+    fontGlyphRange_t *range;
+    int high;
+    int offset;
+
+    for(detail = font->fonts; detail != NULL; detail = detail->next) {
+        detail->baseGlyph = 65535;
+        high = 0;
+        for(range = detail->range; range != NULL; range = range->next) {
+            offset = range->start - range->remap;
+            if((range->start + offset) < detail->baseGlyph) {
+                detail->baseGlyph = (range->start + offset);
+            }
+            if((range->end + offset) > high) {
+                high = (range->end + offset);
+            }
+            range->fontchar = calloc(sizeof(textchar_t) * (range->end - range->start + 1), 1);
+
+        }
+    }
+}
+
+int fontSaveBin(fontStb_t *font, const char *filename, const char *name, const char *symbol) {
+
+}
+
+int fontSaveInline(fontStb_t *font, const char *filename, const char *symbol) {
+
+}
+
+unsigned char *fontImageGenerate(fontStb_t *font, int *width, int *height) {
+
+}
+
+int fontImageSaveAsPng(fontStb_t *font, const char *filename) {
+    if(font->image == NULL) {
+        fontImageGenerate(font, &(font->imgWidth), &(font->imgHeight));
+    }
+
+    return 1;
+}
+
+void printUsage(void) {
+    printf("stbfont <options>\n\n");
+    printf("  --font <FILE>, -f <FILE>    specify the TTF file\n");
+    printf("  --name <NAME>, -n <NAME>    specify the font name\n");
+    printf("  --height <SIZE>, -h <SIZE>\n");
+    printf("  --max-codepoint <NUM>, -c <NUM>\n");
+    printf("  --symbol <NAME>, -s <NAME>\n");
+    printf("  --inl <FILE>, -i <FILE>\n");
+    printf("  --bin <FILE>, -i <FILE>\n");
+    printf("  --png <FILE>, -p <FILE>\n");
+    printf("  --mono, -m\n");
+    printf("  --bold, -b\n");
+    printf("  --help, -?\n\n");
+}
+
 
 textchar fontchar[65536];
 unsigned int glyphmap[65536];
@@ -823,6 +1051,16 @@ int main(int argc, char **argv)
 
 
 // NOTE: Rework to modularize font generation, to enable reuse within other tools
+/*
+ * specify glyph ranges
+ * include font
+ * stbfontgen <fontfile.stb> --font <file.ttf> <size>
+ *
+ * load_font(const char *filename);
+ * add_font(
+ *
+ *
+ */
 #if 0
 
 

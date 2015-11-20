@@ -8,6 +8,11 @@
 #include <flub/data/critbit.h>
 
 
+
+
+typedef void *flubGuiTheme_t;
+
+#if 0
 /*
     {
         file: "flubtheme",
@@ -308,6 +313,7 @@ typedef struct flubGuiTheme_s {
     struct flubGuiTheme_s *next;
 } flubGuiTheme_t;
 
+#endif
 
 int flubGuiThemeInit(void);
 int flubGuiThemeValid(void);
@@ -315,6 +321,8 @@ void flubGuiThemeShutdown(void);
 
 flubGuiTheme_t *flubGuiThemeLoad(const char *filename);
 flubGuiTheme_t *flubGuiThemeGet(const char *name);
+
+#if 0
 
 // TODO - implement saving a theme
 //int flubGuiThemeSave(flubGuiTheme_t *theme, const char *name);
@@ -341,5 +349,6 @@ void flubGuiThemeDraw(flubGuiThemeFragment_t *fragment, gfxMeshObj_t *mesh,
 int flubGuiThemeContextRegister(flubGuiTheme_t *theme, int id, void *context);
 void *flubGuiThemeContextRetrieve(flubGuiTheme_t *theme, int id);
 
+#endif
 
 #endif // _FLUB_GUI_THEME_

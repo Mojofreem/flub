@@ -37,6 +37,7 @@ typedef struct appDefaults_s
     cmdlineDefHandler_t cmdlineHandler; ///< Default command line parameter handler.
     const char *cmdlineParamStr;        ///< Command line help string suffix
     flubResourceList_t *resources; ///< NULL terminated list of the application's memfile resources
+    size_t frameStackSize;      ///< Initial size of the reusable frame memory stack
 } appDefaults_t;
 
 ///////////////////////////////////////////////////////////////////////////////

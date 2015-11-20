@@ -16,7 +16,7 @@
 #define DBG_FILE        12
 #define DBG_EVENT       13
 #define DBG_SDL         14
-#define DBG_MEMFILE     15
+#define DBG_PROFILE     15
 #define DBG_GFX         16
 #define DBG_RESERVED    17
 

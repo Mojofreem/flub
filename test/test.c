@@ -23,6 +23,7 @@ appDefaults_t appDefaults = {
         .cmdlineHandler = cmdlineHandler,
         .cmdlineParamStr = "[param]",
         .resources = NULL,
+        .frameStackSize = 1048576,
 };
 
 void physfs_log(const char *msg) {
@@ -665,6 +666,8 @@ int main(int argc, char *argv[]) {
     }
 
     gfxMeshDestroy(mesh);
+
+    appShutdown();
 
     return 0;
 }

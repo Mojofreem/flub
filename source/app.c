@@ -20,6 +20,7 @@
 #ifdef WIN32
 #   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
+#include <flub/memory.h>
 
 #endif // WIN32
 
@@ -38,6 +39,8 @@ int appUpdate(uint32_t ticks) {
     consoleUpdate(ticks);
 
     videoUpdate();
+
+    memFrameStackReset();
 
 	return 1;
 }
@@ -80,6 +83,8 @@ int appInit(int argc, char **argv) {
     }
 
     if((!logInit()) ||
+       (!memInit()) ||
+       (!memFrameStackInit(appDefaults.frameStackSize)) ||
        (!cmdlineInit(argc, argv)) ||
        (!flubSDLInit()) ||
        (!flubPhysfsInit(argv[0])) ||
@@ -149,5 +154,6 @@ void appShutdown(void) {
     flubPhysfsShutdown();
     flubSDLShutdown();
     cmdlineShutdown();
+    memShutdown();
     logShutdown();
 }
