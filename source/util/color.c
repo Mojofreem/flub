@@ -1,6 +1,10 @@
 #include <flub/util/color.h>
 #include <flub/util/parse.h>
-#include <GL/gl.h>
+#ifdef MACOSX
+#   include <OpenGL/gl.h>
+#else // MACOSX
+#   include <gl/gl.h>
+#endif // MACOSX
 
 
 typedef struct _utilCtx_s {

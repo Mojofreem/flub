@@ -24,7 +24,7 @@ typedef struct __MEM_file
 } MEM_file;
 
 
-void (*log_message)(const char *msg) = NULL;
+void (*PHYSFS_log_callback)(const char *msg) = NULL;
 
 #include <stdarg.h>
 static void log_messagef(const char *fmt, ...) {
@@ -35,12 +35,12 @@ static void log_messagef(const char *fmt, ...) {
     vsnprintf(buf, sizeof(buf) - 2, fmt, ap);
     va_end(ap);
     buf[sizeof(buf) - 2] = '\0';
-    if(log_message != NULL) {
-        log_message(buf);
+    if(PHYSFS_log_callback != NULL) {
+        PHYSFS_log_callback(buf);
     }
 }
 
-#define log(m)  if(log_message != NULL) {log_message(m);}
+#define log(m)  if(PHYSFS_log_callback != NULL) {PHYSFS_log_callback(m);}
 #define logf(f,...) log_messagef(f,##__VA_ARGS__)
 
 
@@ -67,7 +67,11 @@ static PHYSFS_memfile *MEM_ptrFromName(const char *name)
                 strncpy(ptrBuf, name + strlen(PHYSFS_memfilePrefix), size);
                 ptrBuf[size] = '\0';
                 memfile = (PHYSFS_memfile *)(strtol(ptrBuf, NULL, 0));
+#ifdef MACOSX
+                logf("MEM: Name [%s] has value [%p]", name, memfile);
+#else // MACOSX
                 logf("MEM: Name [%s] has value [0x%p]", name, memfile);
+#endif // MACOSX
                 return memfile;
             }
         }

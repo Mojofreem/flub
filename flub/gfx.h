@@ -2,7 +2,11 @@
 #define _FLUB_GFX_HEADER_
 
 
-#include <GL/gl.h>
+#ifdef MACOSX
+#   include <OpenGL/gl.h>
+#else // MACOSX
+#   include <gl/gl.h>
+#endif // MACOSX
 #include <flub/texture.h>
 #include <flub/font_struct.h>
 
@@ -280,13 +284,13 @@ typedef struct flubQuad2D_s {
 
 typedef struct flubQuadAnim_s flubQuadAnim_t;
 
-typedef struct flubQuadAnim_s {
+struct flubQuadAnim_s {
     flubQuad2D_t *dest;
     flubQuad2D_t start;
     flubQuad2D_t finish;
     int duration;
     int currentTicks;
-} flubQuadAnim_t;
+};
 
 
 #endif // _FLUB_GFX_HEADER_

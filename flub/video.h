@@ -3,10 +3,15 @@
 
 
 #include <SDL2/SDL.h>
-#include <gl/gl.h>
-#include <gl/glext.h>
-#include <gl/glu.h>
-
+#ifdef MACOSX
+#	include <OpenGL/gl.h>
+#	include <OpenGL/glext.h>
+#	include <OpenGL/glu.h>
+#else // MACOSX
+#	include <gl/gl.h>
+#	include <gl/glext.h>
+#	include <gl/glu.h>
+#endif // MACOSX
 
 extern const int *const videoWidth;
 extern const int *const videoHeight;

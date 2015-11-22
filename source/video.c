@@ -4,8 +4,13 @@
 #endif
 
 #include <SDL2/SDL.h>
-#include <GL/gl.h>
-#include <GL/glext.h>
+#ifdef MACOSX
+#   include <OpenGL/gl.h>
+#   include <OpenGL/glext.h>
+#else // MACOSX
+#   include <gl/gl.h>
+#   include <GL/glext.h>
+#endif // MACOSX
 #include <SDL2/SDL_opengl.h>
 
 #include <flub/video.h>
@@ -436,12 +441,14 @@ int videoModeSet(int width, int height, int fullscreen) {
     }
 
     if(!fail) {
+#ifdef WIN32        
         // Initialize GLEW
         glewExperimental = GL_TRUE;
         GLenum glewError = glewInit();
         if(glewError != GLEW_OK) {
             errorf("Error initializing GLEW: %s", glewGetErrorString(glewError));
         }
+#endif // WIN32
     }
 
     if(!fail) {

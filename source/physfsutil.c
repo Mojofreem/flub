@@ -19,6 +19,9 @@ static flubResourceList_t _flubMemfileResources[] = {
         {NULL, NULL},
     };
 
+static void _physfsLogCallback(const char *msg) {
+    debugf(DBG_FILE, DBG_FILE_DTL_PHYSFS, "PHYSFS: %s", msg);
+}
 
 int flubPhysfsInit(const char *appPath) {
     char working_dir[512];
@@ -35,6 +38,9 @@ int flubPhysfsInit(const char *appPath) {
     }
 
     logDebugRegister("file", DBG_FILE, "general", DBG_FILE_DTL_GENERAL);
+    logDebugRegister("file", DBG_FILE, "physfs", DBG_FILE_DTL_PHYSFS);
+
+    PHYSFS_log_callback = _physfsLogCallback;
 
     debug(DBG_FILE, DBG_FILE_DTL_GENERAL, "Initializing PHYSFS");
 
@@ -65,6 +71,7 @@ int flubPhysfsInit(const char *appPath) {
             debug(DBG_FILE, DBG_FILE_DTL_GENERAL, "No application archive file specified.");
         }
         for(k = 0; _flubMemfileResources[k].name != NULL; k++) {
+            debugf(DBG_FILE, DBG_FILE_DTL_PHYSFS, "Mounting memory file resource at %p", _flubMemfileResources[k].memfile);
             if(!PHYSFS_mount(PHYSFS_getMemfileName(_flubMemfileResources[k].memfile), NULL, 1)) {
                 errorf("Failed to mount %s", _flubMemfileResources[k].name);
             } else {

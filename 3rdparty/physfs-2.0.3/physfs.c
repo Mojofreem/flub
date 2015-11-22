@@ -17,7 +17,7 @@
 #include "physfs_internal.h"
 
 
-extern void (*log_message)(const char *msg);
+extern void (*PHYSFS_log_callback)(const char *msg);
 
 #include <stdarg.h>
 static void log_messagef(const char *fmt, ...) {
@@ -28,12 +28,12 @@ static void log_messagef(const char *fmt, ...) {
     vsnprintf(buf, sizeof(buf) - 2, fmt, ap);
     va_end(ap);
     buf[sizeof(buf) - 2] = '\0';
-    if(log_message != NULL) {
-        log_message(buf);
+    if(PHYSFS_log_callback != NULL) {
+        PHYSFS_log_callback(buf);
     }
 }
 
-#define log(m)  if(log_message != NULL) {log_message(m);}
+#define log(m)  if(PHYSFS_log_callback != NULL) {PHYSFS_log_callback(m);}
 #define logf(f,...) log_messagef(f,##__VA_ARGS__)
 
 
@@ -1002,9 +1002,16 @@ const char *PHYSFS_getMemfileName(const PHYSFS_memfile *memfile)
     char *name;
     int size;
 
-    size = (sizeof(PHYSFS_memfile *) * 2) + 2 + strlen(PHYSFS_memfilePrefix) + strlen(PHYSFS_memfileExtension) + 1;
+    size = 22 + strlen(PHYSFS_memfilePrefix) + strlen(PHYSFS_memfileExtension) + 1;
     name = (char *) allocator.Malloc(size);
+#ifdef MACOSX
+    // MACOSX prepends a leading 0x, which causes problems
+    sprintf(name, "%s%p%s", PHYSFS_memfilePrefix, memfile, PHYSFS_memfileExtension);
+    logf("MACOSX Memfile ref name is %s", name);
+#else // MACOSX
     sprintf(name, "%s0x%p%s", PHYSFS_memfilePrefix, memfile, PHYSFS_memfileExtension);
+    logf("Memfile ref name is %s", name);
+#endif // MACOSX
     return name;
 } /* PHYSFS_getMemfileName */
 

@@ -1,8 +1,11 @@
 #ifndef _FLUB_FONT_HEADER_
 #define _FLUB_FONT_HEADER_
 
-
-#include <gl/gl.h>
+#ifdef MACOSX
+#   include <OpenGL/gl.h>
+#else // MACOSX
+#   include <gl/gl.h>
+#endif // MACOSX
 #include <flub/font_struct.h>
 #include <flub/gfx.h>
 

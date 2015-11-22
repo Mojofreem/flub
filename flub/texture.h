@@ -3,7 +3,11 @@
 
 
 #include <SDL2/SDL.h>
-#include <gl/gl.h>
+#ifdef MACOSX
+#   include <OpenGL/gl.h>
+#else // MACOSX
+#   include <gl/gl.h>
+#endif // MACOSX
 
 // Flub distinguishes between 3 types of textures:
 //     * anonymous - loaded and passed to the caller immediately. this resource

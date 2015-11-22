@@ -14,6 +14,7 @@
 
 
 #ifndef strndup
+#ifndef MACOSX
 static char *strndup(const char *s, size_t n) {
     char *ptr;
     int len = strlen(s);
@@ -29,6 +30,7 @@ static char *strndup(const char *s, size_t n) {
     ptr[len] = '\0';
     return ptr;
 }
+#endif // MACOSX
 #endif // strndup
 
 

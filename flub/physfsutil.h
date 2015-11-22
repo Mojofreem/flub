@@ -6,6 +6,7 @@
 
 
 #define DBG_FILE_DTL_GENERAL    1
+#define DBG_FILE_DTL_PHYSFS		2
 
 
 int flubPhysfsInit(const char *appPath);
