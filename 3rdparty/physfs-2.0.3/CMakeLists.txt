@@ -35,6 +35,7 @@ INCLUDE_DIRECTORIES(.)
 #INCLUDE_DIRECTORIES(archivers)
 
 IF(MACOSX)
+    ADD_DEFINITIONS(-DMACOSX=1)
     # Fallback to older OS X on PowerPC to support wider range of systems...
     IF(CMAKE_OSX_ARCHITECTURES MATCHES ppc)
         ADD_DEFINITIONS(-DMAC_OS_X_VERSION_MIN_REQUIRED=1020)

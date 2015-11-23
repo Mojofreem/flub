@@ -198,7 +198,7 @@ int generateMemfile(FILE *fp, const char *symbol, fileInfo_t *info) {
 		printf("ERROR: Failed to open file \"%s\" for input.\n", info->path);
 		return 0;
 	}
-	fprintf(fp, "const char _%s_DATA[] = {", structNameGen(symbol, 0, info->index));
+	fprintf(fp, "const unsigned char _%s_DATA[] = {", structNameGen(symbol, 0, info->index));
 	while((c = fgetc(in)) != EOF) {
 		if(!(k % MEMFILE_BYTES_PER_ROW)) {
 			fprintf(fp, "%s\n    ", ((k > 0) ? "," : ""));

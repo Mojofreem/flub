@@ -13,5 +13,7 @@ typedef struct __PHYSFS_memfile {
 	struct __PHYSFS_memfile *next;
 } PHYSFS_memfile;
 
+extern void (*PHYSFS_log_callback)(const char *message);
+
 
 #endif // _INCL_PHYSFS_MEMFILE

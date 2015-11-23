@@ -23,13 +23,8 @@
 
 
 typedef struct cmdlineOptList_s {
-	const char *name;
+	cmdlineOption_t option;
 	const char *shortName;
-	int val;
-	int has_arg;
-    const char *meta;
-	const char *help;
-	cmdlineOptHandler_t handler;
 	struct cmdlineOptList_s *next;
 } cmdlineOptList_t;
 
@@ -93,27 +88,27 @@ static void _cmdlinePrintHelp(cmdlineOptList_t *option) {
     const char *lastspace;
     int inspace;
 
-    if((option->name == NULL) && (option->shortName == NULL)) {
+    if((option->option.name == NULL) && (option->shortName == NULL)) {
         return;
     }
 
-    if(option->name != NULL) {
-        printf("%s", option->name);
-        if(option->meta != NULL) {
-            printf(" <%s>", option->meta);
+    if(option->option.name != NULL) {
+        printf("%s", option->option.name);
+        if(option->option.meta != NULL) {
+            printf(" <%s>", option->option.meta);
         }
     }
     if(option->shortName != NULL) {
-        printf("%s%s", ((option->name != NULL) ? ", " : ""), option->shortName);
-        if(option->meta != NULL) {
-            printf(" <%s>", option->meta);
+        printf("%s%s", ((option->option.name != NULL) ? ", " : ""), option->shortName);
+        if(option->option.meta != NULL) {
+            printf(" <%s>", option->option.meta);
         }
     }
     printf("\n");
 
-    if(option->help != NULL) {
-        ptr = option->help;
-        for(ptr = option->help; *ptr != '\0';) {
+    if(option->option.help != NULL) {
+        ptr = option->option.help;
+        for(ptr = option->option.help; *ptr != '\0';) {
             for(; isspace(*ptr); ptr++);
             if(*ptr == '\0') {
                 break;
@@ -125,7 +120,7 @@ static void _cmdlinePrintHelp(cmdlineOptList_t *option) {
                     if((*work == '\0') || (lastspace == NULL)) {
                         lastspace = work;
                     }
-                    printf("    %.*s\n", (lastspace - ptr), ptr);
+                    printf("    %.*s\n", (int)(lastspace - ptr), ptr);
                     ptr = lastspace;
                     break;
                 }
@@ -334,14 +329,14 @@ static const char *cmdlineOptionListName(cmdlineOptList_t *opt) {
 	static char name[64];
 	int k;
 	
-	if(opt->name == NULL) {
-		snprintf(name, sizeof(name), "\"-%c\"", opt->val);
+	if(opt->option.name == NULL) {
+		snprintf(name, sizeof(name), "\"-%c\"", opt->option.val);
 	} else {
-		snprintf(name, sizeof(name), "\"--%s\"", opt->name);
-		if(opt->val != 0) {
+		snprintf(name, sizeof(name), "\"--%s\"", opt->option.name);
+		if(opt->option.val != 0) {
 			k = strlen(name);
 			if((sizeof(name) - k) > 10) { // _OR_"--x"\0
-				snprintf(name + k, sizeof(name) - k, " OR \"-%c\"", opt->val);
+				snprintf(name + k, sizeof(name) - k, " OR \"-%c\"", opt->option.val);
 			}
 		}
 	}
@@ -354,7 +349,7 @@ void cmdlineOptAdd(const char *name, int val, int has_arg, const char *meta, con
 				   cmdlineOptHandler_t handler) {
 	cmdlineOption_t entry;
 	
-	memset(&entry, 0, sizeof(cmdlineOptList_t));
+	memset(&entry, 0, sizeof(cmdlineOption_t));
 	entry.name = name;
 	entry.val = val;
 	entry.has_arg = has_arg;
@@ -378,10 +373,10 @@ void cmdlineOptEntryAdd(cmdlineOption_t *opt) {
 
 	entry = util_calloc(sizeof(cmdlineOptList_t), 0, NULL);
 	if((opt->name == NULL) || (opt->name[0] == '\0')) {
-		entry->name = NULL;
+		entry->option.name = NULL;
 	} else {
 		snprintf(name, sizeof(name), "--%s", opt->name);
-		entry->name = util_strdup(name);
+		entry->option.name = util_strdup(name);
 	}
 	if(opt->val <= 0) {
 		entry->shortName = NULL;
@@ -389,20 +384,20 @@ void cmdlineOptEntryAdd(cmdlineOption_t *opt) {
 		snprintf(name, sizeof(name), "-%c", opt->val);
 		entry->shortName = util_strdup(name);
 	}
-    entry->val = opt->val;
-	entry->has_arg = opt->has_arg;
-    entry->meta = ((opt->meta == NULL) ? NULL : util_strdup(opt->meta));
-	entry->help = ((opt->help == NULL) ? NULL : util_strdup(opt->help));
-	entry->handler = opt->handler;
+    entry->option.val = opt->val;
+	entry->option.has_arg = opt->has_arg;
+    entry->option.meta = ((opt->meta == NULL) ? NULL : util_strdup(opt->meta));
+	entry->option.help = ((opt->help == NULL) ? NULL : util_strdup(opt->help));
+	entry->option.handler = opt->handler;
 	entry->next = _cmdlineCtx.options;
 	
 	_cmdlineCtx.options = entry;
 
 	if(isprint(opt->val)) {
         debugf(DBG_CMDLINE, DBG_CMD_DTL_OPTIONS, "Added option \"%s\", '-%c'%s",
-               entry->name, opt->val, (opt->has_arg ? " with argument" : " without argument"));
+               entry->option.name, opt->val, (opt->has_arg ? " with argument" : " without argument"));
 	} else {
-        debugf(DBG_CMDLINE, DBG_CMD_DTL_OPTIONS, "Added option \"%s\"%s", entry->name,
+        debugf(DBG_CMDLINE, DBG_CMD_DTL_OPTIONS, "Added option \"%s\"%s", entry->option.name,
                (opt->has_arg ? " with argument" : " without argument"));
 	}
 }
@@ -548,8 +543,8 @@ eCmdLineStatus_t cmdlineProcess(cmdlineDefHandler_t handler, void *context) {
 				name = NULL;
 				for(entry = _cmdlineCtx.options; entry != NULL; entry = entry->next )
 				{
-					if((entry->name != NULL) && (!strcmp(_cmdlineCtx.argv[k], entry->name))) {
-						name = entry->name + 2;
+					if((entry->option.name != NULL) && (!strcmp(_cmdlineCtx.argv[k], entry->option.name))) {
+						name = entry->option.name + 2;
 						found = 1;
 					} else if((entry->shortName != NULL) && (!strcmp(_cmdlineCtx.argv[k], entry->shortName))) {
 						name = entry->shortName + 1;
@@ -559,16 +554,16 @@ eCmdLineStatus_t cmdlineProcess(cmdlineDefHandler_t handler, void *context) {
 					}
 
 					// We found a matching option
-					if(!entry->has_arg) {
-                        if(entry->handler != NULL) {
-                            result = entry->handler(name, NULL, context);
+					if(!entry->option.has_arg) {
+                        if(entry->option.handler != NULL) {
+                            result = entry->option.handler(name, NULL, context);
                         }
 					} else {
 						if(cmdlineCheckOptArg(k)) {
-                            if(entry->handler != NULL) {
-                                result = entry->handler(name, _cmdlineCtx.argv[k + 1], context);
+                            if(entry->option.handler != NULL) {
+                                result = entry->option.handler(name, _cmdlineCtx.argv[k + 1], context);
                             } else {
-                                infof("No handler specified for %s", entry->name);
+                                infof("No handler specified for %s", entry->option.name);
                             }
 							k++;
 						} else {
