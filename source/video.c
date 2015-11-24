@@ -115,7 +115,7 @@ void _videoAddNewEnumMode(videoMode_t **modes, int width, int height, Uint32 for
     videoMode_t *walk, *tmp;
     
     for(walk = *modes; walk != NULL; walk = walk->next) {
-        if((walk->width == width) && (walk->height == height) && (format == format)) {
+        if((walk->width == width) && (walk->height == height) && (walk->format == format)) {
             return;
         }
     }
@@ -177,11 +177,11 @@ void _videoFreeVideoEnumList(void) {
 void _videoCloseDisplay(void) {
     if(_videoCtx.glContext != NULL) {
         SDL_GL_DeleteContext(_videoCtx.glContext);
-        _videoCtx.glContext == NULL;
+        _videoCtx.glContext = NULL;
     }
     if(_videoCtx.window != NULL) {
         SDL_DestroyWindow(_videoCtx.window);
-        _videoCtx.window == NULL;
+        _videoCtx.window = NULL;
     }
     _videoCtx.active = 0;
 }

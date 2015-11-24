@@ -131,7 +131,7 @@ void circBufClear(circularBuffer_t *buf) {
 
 static void _circBufHeadPop(circBuf_t *ptr) {
     int len;
-    int *check;
+    unsigned int *check;
 
     if(ptr->count) {
 #ifdef CIRC_BUF_OVERRUN

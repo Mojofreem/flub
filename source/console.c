@@ -488,6 +488,7 @@ int consoleUpdate(Uint32 ticks) {
 	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
 		gfxMeshRender(_consoleCtx.cmdMesh);
 	}
+    return 1;
 }
 
 void consoleShow(int show) {

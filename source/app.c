@@ -12,6 +12,7 @@
 #include <flub/input.h>
 #include <flub/console.h>
 #include <flub/theme.h>
+#include <flub/memory.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <stdlib.h>

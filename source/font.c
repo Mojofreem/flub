@@ -336,7 +336,7 @@ int flubFontLoad(const char *filename) {
     }
 
     PHYSFS_read(handle, fileid, 8, 1);
-    fileid[8] == '\0';
+    fileid[8] = '\0';
     if(strcmp(fileid, "STBFONT")) {
         PHYSFS_close(handle);
         errorf("File \"%s\" is not a STB binary font file: [%s].", filename, fileid);

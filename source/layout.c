@@ -530,6 +530,7 @@ int layoutNodeWalk(layoutNode_t *node, void *context) {
             return 0;
         }
     }
+    return 1;
 }
 
 layoutNode_t *layoutNodeFindById(layoutNode_t *node, int id) {

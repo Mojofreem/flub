@@ -177,7 +177,7 @@ unsigned int parseHex(const char *str) {
     }
     for(; isspace(*str); str++);
     if((*str == 'h') || (*str == 'H')) {
-        *str++;
+        str++;
         for(; isspace(*str); str++);
     }
     if(*str != '\0') {

@@ -690,6 +690,8 @@ int inputModeAdd(const char *name, int id) {
 			return 1;
 		}
 	}
+	last->next = mode;
+	return 1;
 }
 
 int inputModeRemove(int id) {

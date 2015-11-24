@@ -746,6 +746,7 @@ int logFileInit(const char *file) {
     }
     logAddNotifiee(_logFileCallback);
     mutexRelease(g_logCtx.mutex);
+    return 1;
 }
 
 void logFileShutdown(void) {
@@ -785,6 +786,7 @@ void logStdoutShutdown(void) {
 void _logSDLCallback(void *userdata, int category, SDL_LogPriority priority, const char *message) {
     switch(priority) {
         case SDL_LOG_PRIORITY_DEBUG:
+        default:
             debug(DBG_SDL, DBG_SDL_DTL_GENERAL, message);
             break;
         case SDL_LOG_PRIORITY_VERBOSE:
@@ -828,6 +830,7 @@ static eCmdLineStatus_t _logDebugListHandler(const char *name, const char *arg, 
             printf("    %s\n", detail->str);
         }
     }
+    return eCMDLINE_OK;
 }
 #endif // FLUB_DEBUG
 
