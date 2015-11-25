@@ -17,13 +17,46 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <flub/module.h>
 
 #ifdef WIN32
 #   define WIN32_LEAN_AND_MEAN
 #   include <windows.h>
 #include <flub/memory.h>
-
 #endif // WIN32
+
+
+#define DBG_CORE_DTL_GENERAL    1
+
+
+/*
+
+anim
+audio
+cmdline
+config
+console
+core
+font
+gfx
+gui
+input
+layout
+logger
+memory
+physfs
+texture
+theme
+thread
+video
+widget
+
+*/
+
+flubModuleCfg_t *_flubModules[] = {
+    NULL,
+};
+
 
 static struct {
     int launchedFromConsole;
@@ -73,7 +106,8 @@ static int _appLaunchedFromConsole(void) {
 #endif // WIN32
 
 int appInit(int argc, char **argv) {
-	const char *opt;
+    const char *opt;
+    int k;
 
     _flubAppCtx.launchedFromConsole = _appLaunchedFromConsole();
 
@@ -83,8 +117,17 @@ int appInit(int argc, char **argv) {
 	    _flubAppCtx.progName = argv[0];
     }
 
-    if((!logInit()) ||
-       (!memInit()) ||
+    if(!logInit()) {
+        return 0;
+    }
+
+    logDebugRegister("core", DBG_CORE, "general", DBG_CORE_DTL_GENERAL);
+
+    for(k = 0; _flubModules[k] != NULL; k++) {
+        flubModuleRegister(_flubModules[k]);
+    }
+
+    if((!memInit()) ||
        (!memFrameStackInit(appDefaults.frameStackSize)) ||
        (!cmdlineInit(argc, argv)) ||
        (!flubSDLInit()) ||

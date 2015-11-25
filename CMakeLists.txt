@@ -114,6 +114,7 @@ LIST (APPEND FLUB_SRC
     source/license.c
     source/logger.c
     source/memory.c
+    source/module.c
     source/physfsrwops.c
     source/physfsutil.c
     source/sdl.c

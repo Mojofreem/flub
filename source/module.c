@@ -1,33 +1,36 @@
-#include <flub/app.h>
+#include <flub/module.h>
 #include <flub/memory.h>
+#include <flub/logger.h>
 
-/*
-typedef int (*flubModuleInitCB_t)(int argc, char **argv, appDefaults_t *appDefaults);
-typedef int (*flubModuleStart_t)(void);
-typedef void (*flubModuleShutdown_t)(void);
-typedef int (*flubModuleUpdateCB_t)(Uint32 ticks, Uint32 elapsed);
 
-typedef struct flubModuleCfg_s {
-    const char *name;
-    flubModuleInitCB_t init;
-    flubModuleStart_t start;
-    flubModuleUpdateCB_t update;
-    flubModuleShutdown_t shutdown;
-    char **dependencies;
-} flubModuleCfg_t;
-*/
+#define DBG_CORE_DTL_MODULES    2
+
 
 typedef struct flubModuleCfgEntry_s {
     flubModuleCfg_t config;
     int inited;
     int deps;
-    flubModuleCfgEntry_t *next;
-    flubModuleCfgEntry_t *shutdownOrder;
+    struct flubModuleCfgEntry_s *next;
+    struct flubModuleCfgEntry_s *shutdownOrder;
 } flubModuleCfgEntry_t;
+
+
+struct {
+    int init;
+} _modulesCtx = {
+    .init = 0,
+};
 
 static flubModuleCfgEntry_t *_flubRegisteredModules = NULL;
 static flubModuleCfgEntry_t *_flubModuleShutdownOrder = NULL;
 
+
+static void _flubModulesInit(void) {
+    if(!_modulesCtx.init) {
+        logDebugRegister("core", DBG_CORE, "modules", DBG_CORE_DTL_MODULES);
+        _modulesCtx.init = 1;
+    }
+}
 
 void flubModuleRegister(flubModuleCfg_t *module) {
     flubModuleCfgEntry_t *walk, *last = NULL;
@@ -63,12 +66,12 @@ static int _flubModulesCalcDeps(void) {
         if(walk->inited) {
             continue;
         }
-        if(walk->dependencies == NULL) {
+        if(walk->config.dependencies == NULL) {
             ready++;
             continue;
         }
         for(check = _flubRegisteredModules; check != NULL; check = check->next) {
-            if(_flubModulesCheckStrInArray(check->name, walk->dependencies)) {
+            if(_flubModulesCheckStrInArray(check->config.name, walk->config.dependencies)) {
                 walk->deps++;
             }
         }
@@ -111,7 +114,7 @@ static int _flubIsModuleInited(const char *name) {
 
 #define FLUB_MODULE_STATE_BUF_LEN   512
 
-static void flubModulesDumpState(void) {
+static void _flubModulesDumpState(void) {
     char buf[FLUB_MODULE_STATE_BUF_LEN];
     int size = 0;
     int k;
@@ -146,8 +149,11 @@ int flubModulesInit(appDefaults_t *defaults, int argc, char **argv) {
     }
     done = 1;
 
+    _flubModulesInit();
+
     while((result = _flubModulesCalcDeps()) > 0) {
         entry = _flubModulesGetNextReady();
+        debugf(DBG_CORE, DBG_CORE_DTL_MODULES, "Initializing module \"%s\"...", entry->config.name);
         if(entry->config.init != NULL) {
             if(!entry->config.init(argc, argv, defaults)) {
                 return 0;
@@ -159,12 +165,13 @@ int flubModulesInit(appDefaults_t *defaults, int argc, char **argv) {
                 last->shutdownOrder = entry;
                 last = entry;
             }
+            debugf(DBG_CORE, DBG_CORE_DTL_MODULES, "Module \"%s\" initialized.", entry->config.name);
             entry->inited = 1;
         }
     }
     if(result < 0) {
-        fatal("Unable to init flub modules.")
-        _flubModuleDumpState();
+        fatal("Unable to init flub modules.");
+        _flubModulesDumpState();
         return 0;
     }
     return 1;
@@ -186,17 +193,20 @@ int flubModulesStart(void) {
     }
 
     while((result = _flubModulesCalcDeps()) > 0) {
-        entry = _flubModulesGetNextReady();
-        if(entry->config.start != NULL) {
-            if(!entry->config.start()) {
-                return 0;
+        if((entry = _flubModulesGetNextReady()) != NULL) {
+            debugf(DBG_CORE, DBG_CORE_DTL_MODULES, "Starting module \"%s\"...", entry->config.name);
+            if(entry->config.start != NULL) {
+                if(!entry->config.start()) {
+                    return 0;
+                }
+                entry->inited = 1;
             }
-            entry->inited = 1;
+            debugf(DBG_CORE, DBG_CORE_DTL_MODULES, "Module \"%s\" started.", entry->config.name);
         }
     }
     if(result < 0) {
-        fatal("Unable to start flub modules.")
-        _flubModuleDumpState();
+        fatal("Unable to start flub modules.");
+        _flubModulesDumpState();
         return 0;
     }
     return 1;
@@ -212,8 +222,8 @@ void flubModulesShutdown(void) {
     done = 1;
     
     for(walk = _flubModuleShutdownOrder; walk != NULL; walk = walk->shutdownOrder) {
-        if(walk->shutdown != NULL) {
-            walk->shutdown();
+        if(walk->config.shutdown != NULL) {
+            walk->config.shutdown();
         }
     }
 }
