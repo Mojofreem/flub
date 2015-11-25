@@ -9,7 +9,7 @@ FIND_PACKAGE(SDL2 REQUIRED)
 FIND_PACKAGE(SDL2_mixer REQUIRED)
 FIND_PACKAGE(OpenGL REQUIRED)
 IF(MINGW)
-    SET(ZLIB_ROOT "/Mingw/")
+    SET(ZLIB_ROOT "C:/Mingw/")
 ENDIF(MINGW)
 FIND_PACKAGE(ZLIB REQUIRED)
 INCLUDE_DIRECTORIES(${SDL2_INCLUDE_DIR}
@@ -41,6 +41,7 @@ if (WIN32)
     SET(PHYSFS_LIBRARIES physfs)
     SET(DOXYGEN_FOUND 1)
     SET(DOXYGEN_EXECUTABLE doxygen)
+    SET(ZLIB_LIBRARY libz)
 else (WIN32)
     if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         MESSAGE(STATUS "Build is Mac OSX")
@@ -194,9 +195,9 @@ FONT2BIN("stb_font_times_12_usascii.inl" times_12_usascii times 12 0 0 "times.12
 ###############################################################################
 
 # Generate the compiled file structure, and include it in the library.
-MESSAGE(STATUS "Deps: ${FLUB_RES_DEP_LIST}")
-MESSAGE(STATUS "Inc: ${FLUB_RES_INC_LIST}")
-ADD_CUSTOM_COMMAND(OUTPUT ${FLUB_RESOURCE_DIR}/flub_resources.c ${FLUB_RESOURCE_DIR}/flub_resource.h DEPENDS memfile ${FLUB_RES_DEP_LIST} COMMAND memfile ${FLUB_RESOURCE_DIR}/flub_resources flubDefaultResources -b ${FLUB_RESOURCE_DIR}/ ${FLUB_RES_INC_LIST} COMMENT "Building Flub resource cache source file.")
+#MESSAGE(STATUS "Deps: ${FLUB_RES_DEP_LIST}")
+#MESSAGE(STATUS "Inc: ${FLUB_RES_INC_LIST}")
+ADD_CUSTOM_COMMAND(OUTPUT ${FLUB_RESOURCE_DIR}/flub_resources.c ${FLUB_RESOURCE_DIR}/flub_resources.h DEPENDS memfile ${FLUB_RES_DEP_LIST} COMMAND memfile ${FLUB_RESOURCE_DIR}/flub_resources flubDefaultResources -b ${FLUB_RESOURCE_DIR}/ ${FLUB_RES_INC_LIST} COMMENT "Building Flub resource cache source file.")
 LIST(APPEND FLUB_SRC ${FLUB_RESOURCE_DIR}/flub_resources.c)
 
 ###############################################################################
