@@ -1,3 +1,63 @@
+Flub
+console API improvements
+    console output API
+    console input API
+    console command API
+    color coded output
+    columnated output
+    tabulated output
+    tab completion
+        command hinting
+        param hinting
+    input feedback
+        color coded input validation
+
+    typedef int (*consoleCmdParamValidator_t)(void *context, int paramPos, const char *param);
+    typedef void (*consoleCmdParamHinter_t)(void *context, int paramPos, const char **params);
+
+    typedef struct consoleCmdItem_s {
+        const char *name;
+        consoleCmdParamValidator_t validator;
+    } consoleCmdItem_t;
+
+screen capture
+    letterbox capture
+    zlib compress/expand image
+
+simple image processing
+    black and white filter
+    color tinting filter
+
+shader
+    black and white
+        fade, using user variable
+    sepia/old timey
+        fade, using user variable
+
+theme system
+    data structure
+    parser
+
+updated doxygen template
+begin documenting finished areas of code
+
+boot order init system
+on init, each module gives a start callback, and a list of dependeny modules.
+flub waits to call a given modules start callback until all dependencies have
+been started.
+module configuration structure?
+    fields for all registration purposes
+
+primarily buffer based
+provide convenience direct mode work alikes
+use z layer to provide layering effects in 2D plane with fewer meshes
+
+drawing primitives
+font blit to raw buffer
+
+clean up existing API modules
+logical seperation
+
 Update font conversion tool to allow splicing fonts
     renumber glyphs
     transpose glyphs from multiple fonts
