@@ -4,6 +4,7 @@
 #include <flub/physfsutil.h>
 #include <physfs.h>
 #include <flub/theme.h>
+#include <flub/memory.h>
 
 
 eCmdLineStatus_t cmdlineHandler(const char *arg, void *context) {
@@ -246,6 +247,18 @@ void fadeinCompleted(gfxEffect_t *oldEffect, void *context) {
 }
 #endif
 
+
+texture_t *snapAndRescale(int w, int h) {
+    int size;
+    texture_t *tex;
+    unsigned char *data;
+
+    data = util_alloc((w * h * 3), NULL);
+    videoScreenCapture(data, w, h);
+    tex = texmgrCreate(NULL, GL_NEAREST, GL_NEAREST, 0, 0, 0, 0, 3, GL_RGB, data, w, h);
+    return tex;
+}
+
 extern void (*log_message)(const char *msg);
 
 int main(int argc, char *argv[]) {
@@ -270,6 +283,7 @@ int main(int argc, char *argv[]) {
     sound_t *sound;
     char cwdbuf[1024];
     font_t *pfont;
+    texture_t *scaled = NULL;
 
     texture_t *tex_misc;
     texture_t *tex_dlg;
@@ -480,6 +494,24 @@ int main(int argc, char *argv[]) {
     flubGuiThemeLoad("assets/data/flub-basic.theme");
     info("### Done loading theme ##########");
 
+    int a, b;
+
+    a = 640;
+    b = 480;
+    videoRatioResize(&a, &b);
+
+    a = 320;
+    b = 480;
+    videoRatioResize(&a, &b);
+
+    a = 500;
+    b = 246;
+    videoRatioResize(&a, &b);
+
+    a = 720;
+    b = 480;
+    videoRatioResize(&a, &b);
+
     lastTick = SDL_GetTicks();
     while (keepGoing) {
         current = SDL_GetTicks();
@@ -566,6 +598,12 @@ int main(int argc, char *argv[]) {
                             break;
                         case SDLK_RIGHT:
                         case SDLK_f:
+                            break;
+                        case SDLK_t:
+                            if(scaled != NULL) {
+                                texmgrRelease(scaled);
+                            }
+                            scaled = snapAndRescale(320,200);
                             break;
                         case SDLK_ESCAPE:
                             keepGoing = 0;
@@ -659,6 +697,10 @@ int main(int argc, char *argv[]) {
         //gfxSliceBlit(expBar, 10, *videoWidth - expBar->width - 10, *videoHeight - 10, *videoWidth - 10);
         //gfxSliceBlit(expBar, 10, 10, 50, 200);
         //videoPopGLState();
+
+        if(scaled != NULL) {
+            gfxTexBlit(scaled, 10, 10);
+        }
 
         if(!appUpdate(current)) {
             keepGoing = 0;

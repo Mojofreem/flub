@@ -200,6 +200,7 @@ int videoInit(void) {
     }
 
     logDebugRegister("video", DBG_VIDEO, "shaders", DBG_VID_DTL_SHADERS);
+    logDebugRegister("video", DBG_VIDEO, "capture", DBG_VID_DTL_CAPTURE);
 
     if(!flubCfgValid()) {
         fatal("Cannot initialize the video module: config was not initialized");
@@ -694,14 +695,104 @@ static void _videoFlipScreenshotBuffer(void) {
     }
 }
 
+void videoRatioResize(int *width, int *height) {
+    //  r = h / w
+    //  h = r * w
+    //  w = h / r
+    float ratio = ((float)(_videoHeight)) / ((float)(_videoWidth));
+    int newHeight = *height;
+    int newWidth = *width;
+    if((((float)(*width)) * ratio) > (*height)) {
+        newWidth = ((float)(*height)) / ratio;
+    } else {
+        newHeight = ((float)(*width)) * ratio;
+    }
+    float oldRatio = ((float)(*height)) / ((float)(*width));
+    float newRatio = ((float)newHeight) / ((float)newWidth);
+    debugf(DBG_VIDEO, DBG_VID_DTL_CAPTURE, "videoRatioResize(%d,%d) Screen: %.2f, Orig: %.2f, New: (%d,%d) %.2f",
+           *width, *height, ratio, oldRatio, newWidth, newHeight, newRatio);
+    *width = newWidth;
+    *height = newHeight;
+}
+
+size_t videoFrameMemSize(int width, int height) {
+    // 3 bytes per pixel, RGB
+    return width * height * 3;
+}
+
+static void _videoImageScaleLine(unsigned char *Target, unsigned char *Source, int SrcWidth, int TgtWidth, int bytesPerPixel) {
+    int NumPixels = TgtWidth;
+    int IntPart = (SrcWidth / TgtWidth) * bytesPerPixel;
+    int FractPart = SrcWidth % TgtWidth;
+    int E = 0;
+
+    while(NumPixels-- > 0) {
+        *Target = *Source;
+        Target++;
+        *Target = *(Source + 1);
+        Target++;
+        *Target = *(Source + 2);
+        Target++;
+        if(bytesPerPixel == 4) {
+            *Target = *(Source + 3);
+            Target++;
+        }
+
+        Source += IntPart;
+
+        E += FractPart;
+        if (E >= TgtWidth) {
+            E -= TgtWidth;
+            Source+= bytesPerPixel;
+        }
+    }
+}
+
+void videoImageResize(unsigned char *srcData, int srcWidth, int srcHeight,
+                      unsigned char *destData, int destWidth, int destHeight, int bytesPerPixel) {
+    int NumPixels = destHeight;
+    int IntPart = ((srcHeight / destHeight) * srcWidth) * bytesPerPixel;
+    int FractPart = srcHeight % destHeight;
+    int E = 0;
+
+    unsigned char *PrevSource = NULL;
+    while(NumPixels-- > 0) {
+        if (srcData == PrevSource) {
+            memcpy(destData, destData - (destWidth * bytesPerPixel), (destWidth * bytesPerPixel));
+        } else {
+            _videoImageScaleLine(destData, srcData, srcWidth, destWidth, bytesPerPixel);
+            PrevSource = srcData;
+        }
+        destData += (destWidth * bytesPerPixel);
+        srcData += IntPart;
+        E += FractPart;
+        if (E >= destHeight) {
+            E -= destHeight;
+            srcData += (srcWidth * bytesPerPixel);
+        }
+    }
+}
+
+void videoScreenCapture(unsigned char *data, int width, int height) {
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, _videoCtx.width, _videoCtx.height, GL_RGB, GL_UNSIGNED_BYTE, _videoCtx.screenshotBuffer);
+    _videoFlipScreenshotBuffer();
+
+    if(data != NULL) {
+        videoImageResize(_videoCtx.screenshotBuffer, _videoCtx.width, _videoCtx.height,
+                         data, width, height, 3);
+    }    
+}
+
 void videoScreenshot(const char *fname) {
     char *name;
     char buffer[MAX_SCREENSHOT_FNAME_LEN];
 
     name = utilGenFilename(fname, "png", 9999, buffer, sizeof(buffer));
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glReadPixels(0, 0, _videoCtx.width, _videoCtx.height, GL_RGB, GL_UNSIGNED_BYTE, _videoCtx.screenshotBuffer);
-    _videoFlipScreenshotBuffer();
+    videoScreenCapture(NULL, 0, 0);
+    //glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    //glReadPixels(0, 0, _videoCtx.width, _videoCtx.height, GL_RGB, GL_UNSIGNED_BYTE, _videoCtx.screenshotBuffer);
+    //_videoFlipScreenshotBuffer();
     stbi_write_png(name, _videoCtx.width, _videoCtx.height, 3, _videoCtx.screenshotBuffer, 0);
 }
 
@@ -847,7 +938,7 @@ GLuint videoGetShader(GLenum shaderType, const char *filename) {
         return 0;
     }
 
-    debugf(DBG_VIDEO, DBG_VID_DTL_SHADERS, "Loaded shader \%s\"", filename);
+    debugf(DBG_VIDEO, DBG_VID_DTL_SHADERS, "Loaded shader \"%s\"", filename);
 
     util_free(buffer);
     entry->filename = strdup(filename);

@@ -14,6 +14,7 @@
 #endif // MACOSX
 
 #define DBG_VID_DTL_SHADERS     1
+#define DBG_VID_DTL_CAPTURE		2
 
 extern const int *const videoWidth;
 extern const int *const videoHeight;
@@ -68,6 +69,13 @@ int videoAddNotifiee(videoNotifieeCB_t callback);
 int videoRemoveNotifiee(videoNotifieeCB_t callback);
 void videoRemoveAllNotifiees(void);
 
+// Given width and height, determine the largest size that fits within
+// the initial values that matches the current video size ratio
+void videoRatioResize(int *width, int *height);
+size_t videoFrameMemSize(int width, int height);
+void videoImageResize(unsigned char *srcData, int srcWidth, int srcHeight,
+                  unsigned char *destData, int destWidth, int destHeight, int bytesPerPixel);
+void videoScreenCapture(unsigned char *data, int width, int height);
 void videoScreenshot(const char *fname);
 
 int videoValidateOpenGLProgram(GLuint object);
