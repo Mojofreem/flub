@@ -34,9 +34,10 @@ function clear_cmake_artifacts {
 	for path in "${CMAKE_WORKDIRS[@]}"; do
 		rm -rf ${path}
 	done
-	for file in "${CMAKE_REVERTS[@]}"; do
-		git checkout -- ${file}
-	done
+	# git doesn't work under my MinGW build shell
+	#for file in "${CMAKE_REVERTS[@]}"; do
+	#	git checkout -- ${file}
+	#done
 }
 
 function clear_bins {
