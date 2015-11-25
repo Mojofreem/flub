@@ -695,7 +695,38 @@ static void _videoFlipScreenshotBuffer(void) {
     }
 }
 
-void videoRatioResize(int *width, int *height) {
+void videoRatioResize(int refWidth, int refHeight, int *width, int *height) {
+    //  r = h / w
+    //  h = r * w
+    //  w = h / r
+    float ratio = ((float)(refHeight)) / ((float)(refWidth));
+    int newHeight = *height;
+    int newWidth = *width;
+    if((((float)(*width)) * ratio) > (*height)) {
+        newWidth = ((float)(*height)) / ratio;
+    } else {
+        newHeight = ((float)(*width)) * ratio;
+    }
+    *width = newWidth;
+    *height = newHeight;
+}
+
+void videoScreenRatioResize(int *width, int *height) {
+    //  r = h / w
+    //  h = r * w
+    //  w = h / r
+    int w = *width;
+    int h = *height;
+    float ratio = ((float)(_videoHeight)) / ((float)(_videoWidth));
+    float oldRatio = ((float)(*height)) / ((float)(*width));
+    videoRatioResize(_videoWidth, _videoHeight, width, height);
+    float newRatio = ((float)(*height)) / ((float)(*width));
+    debugf(DBG_VIDEO, DBG_VID_DTL_CAPTURE, "videoRatioResize(%d,%d) Screen: %.2f, Orig: %.2f, New: (%d,%d) %.2f",
+           w, h, ratio, oldRatio, *width, *height, newRatio);
+}
+
+/*
+void videoScreenRatioResize(int *width, int *height) {
     //  r = h / w
     //  h = r * w
     //  w = h / r
@@ -715,61 +746,94 @@ void videoRatioResize(int *width, int *height) {
     *height = newHeight;
 }
 
+
+*/
+
 size_t videoFrameMemSize(int width, int height) {
     // 3 bytes per pixel, RGB
     return width * height * 3;
 }
 
-static void _videoImageScaleLine(unsigned char *Target, unsigned char *Source, int SrcWidth, int TgtWidth, int bytesPerPixel) {
-    int NumPixels = TgtWidth;
-    int IntPart = (SrcWidth / TgtWidth) * bytesPerPixel;
-    int FractPart = SrcWidth % TgtWidth;
+static void _videoImageScaleLine(unsigned char *srcData, int srcWidth, unsigned char *destData, int destWidth, int bytesPerPixel) {
+    int pixels = destWidth;
+    int integerPart = (srcWidth / destWidth) * bytesPerPixel;
+    int fractionalPart = srcWidth % destWidth;
     int E = 0;
 
-    while(NumPixels-- > 0) {
-        *Target = *Source;
-        Target++;
-        *Target = *(Source + 1);
-        Target++;
-        *Target = *(Source + 2);
-        Target++;
+    while(pixels-- > 0) {
+        *destData = *srcData;
+        destData++;
+        *destData = *(srcData + 1);
+        destData++;
+        *destData = *(srcData + 2);
+        destData++;
         if(bytesPerPixel == 4) {
-            *Target = *(Source + 3);
-            Target++;
+            *destData = *(srcData + 3);
+            destData++;
         }
 
-        Source += IntPart;
+        srcData += integerPart;
 
-        E += FractPart;
-        if (E >= TgtWidth) {
-            E -= TgtWidth;
-            Source+= bytesPerPixel;
+        E += fractionalPart;
+        if (E >= destWidth) {
+            E -= destWidth;
+            srcData+= bytesPerPixel;
         }
     }
 }
 
 void videoImageResize(unsigned char *srcData, int srcWidth, int srcHeight,
-                      unsigned char *destData, int destWidth, int destHeight, int bytesPerPixel) {
-    int NumPixels = destHeight;
-    int IntPart = ((srcHeight / destHeight) * srcWidth) * bytesPerPixel;
-    int FractPart = srcHeight % destHeight;
+                      unsigned char *destData, int destWidth, int destHeight,
+                      int bytesPerPixel, int forceRatio,
+                      int red, int green, int blue, int alpha) {
+    int rows = destHeight;
+    int integerPart = ((srcHeight / destHeight) * srcWidth) * bytesPerPixel;
+    int fractionalPart = srcHeight % destHeight;
     int E = 0;
+    int k, j;
+    int letterboxRows = 0;
+
+    if(forceRatio) {
+        int w = destWidth;
+        int h = destHeight;
+        videoRatioResize(srcWidth, srcHeight, &w, &h);
+        if(h < destHeight) {
+            k = ((destHeight - h) / 2) * destWidth * bytesPerPixel;
+            for(; k > 0; k--) {
+                for(j = 0; j < bytesPerPixel; j++) {
+                    destData[j] = 0;
+                }
+                destData += bytesPerPixel;
+            }
+            rows = h;
+            letterboxRows = (destHeight - h) % 2;
+        }
+    }
 
     unsigned char *PrevSource = NULL;
-    while(NumPixels-- > 0) {
+    while(rows-- > 0) {
         if (srcData == PrevSource) {
             memcpy(destData, destData - (destWidth * bytesPerPixel), (destWidth * bytesPerPixel));
         } else {
-            _videoImageScaleLine(destData, srcData, srcWidth, destWidth, bytesPerPixel);
+            _videoImageScaleLine(srcData, srcWidth, destData, destWidth, bytesPerPixel);
             PrevSource = srcData;
         }
         destData += (destWidth * bytesPerPixel);
-        srcData += IntPart;
-        E += FractPart;
+        srcData += integerPart;
+        E += fractionalPart;
         if (E >= destHeight) {
             E -= destHeight;
             srcData += (srcWidth * bytesPerPixel);
         }
+    }
+
+    if(letterboxRows) {
+        for(k = letterboxRows; k > 0; k--) {
+            for(j = 0; j < bytesPerPixel; j++) {
+                destData[j] = 0;
+            }
+            destData += bytesPerPixel;
+        }        
     }
 }
 
@@ -780,7 +844,7 @@ void videoScreenCapture(unsigned char *data, int width, int height) {
 
     if(data != NULL) {
         videoImageResize(_videoCtx.screenshotBuffer, _videoCtx.width, _videoCtx.height,
-                         data, width, height, 3);
+                         data, width, height, 3, 0, 0, 0, 0, 0);
     }    
 }
 
@@ -794,6 +858,7 @@ void videoScreenshot(const char *fname) {
     //glReadPixels(0, 0, _videoCtx.width, _videoCtx.height, GL_RGB, GL_UNSIGNED_BYTE, _videoCtx.screenshotBuffer);
     //_videoFlipScreenshotBuffer();
     stbi_write_png(name, _videoCtx.width, _videoCtx.height, 3, _videoCtx.screenshotBuffer, 0);
+    infof("Saved screenshot \"%s\".", name);
 }
 
 static void _videoScreenshotHandler(SDL_Event *event, int pressed, int motion, int x, int y) {

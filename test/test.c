@@ -498,19 +498,19 @@ int main(int argc, char *argv[]) {
 
     a = 640;
     b = 480;
-    videoRatioResize(&a, &b);
+    videoScreenRatioResize(&a, &b);
 
     a = 320;
     b = 480;
-    videoRatioResize(&a, &b);
+    videoScreenRatioResize(&a, &b);
 
     a = 500;
     b = 246;
-    videoRatioResize(&a, &b);
+    videoScreenRatioResize(&a, &b);
 
     a = 720;
     b = 480;
-    videoRatioResize(&a, &b);
+    videoScreenRatioResize(&a, &b);
 
     lastTick = SDL_GetTicks();
     while (keepGoing) {
@@ -604,6 +604,9 @@ int main(int argc, char *argv[]) {
                                 texmgrRelease(scaled);
                             }
                             scaled = snapAndRescale(320,200);
+                            break;
+                        case SDLK_p:
+                            videoScreenshot("screenshot");
                             break;
                         case SDLK_ESCAPE:
                             keepGoing = 0;
