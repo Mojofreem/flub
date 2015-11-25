@@ -67,6 +67,10 @@
 
 message("<FindSDL2.cmake>")
 
+IF(MINGW)
+	SET(SDL2_PATH "C:\\MinGW")
+ENDIF(MINGW)
+
 SET(SDL2_SEARCH_PATHS
 	~/Library/Frameworks
 	/Library/Frameworks
