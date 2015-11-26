@@ -705,7 +705,7 @@ int main(int argc, char *argv[]) {
             gfxTexBlit(scaled, 10, 10);
         }
 
-        if(!appUpdate(current)) {
+        if(!appUpdate(current, elapsed)) {
             keepGoing = 0;
         }
     }

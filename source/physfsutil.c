@@ -23,9 +23,10 @@ static void _physfsLogCallback(const char *msg) {
     debugf(DBG_FILE, DBG_FILE_DTL_PHYSFS, "PHYSFS: %s", msg);
 }
 
-int flubPhysfsInit(const char *appPath) {
+int flubPhysfsInit(appDefaults_t *defaults) {
     char working_dir[512];
     int k;
+    const char *appPath = defaults->argv[0];
 
     if(_physfsCtx.init) {
         warning("Ignoring attempt to re-initialize physfs.");
@@ -108,6 +109,12 @@ void flubPhysfsShutdown(void) {
 
     PHYSFS_deinit();
 }
+
+flubModuleCfg_t flubModulePhysfs = {
+    .name = "physfs",
+    .init = flubPhysfsInit,
+    .shutdown = flubPhysfsShutdown,
+};
 
 char *PHYSFS_gets(char *str, int maxlen, PHYSFS_File *handle) {
     char byte, *ptr;

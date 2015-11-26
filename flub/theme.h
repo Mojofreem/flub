@@ -6,8 +6,7 @@
 #include <flub/font.h>
 #include <flub/texture.h>
 #include <flub/data/critbit.h>
-
-
+#include <flub/app.h>
 
 
 typedef void *flubGuiTheme_t;
@@ -315,7 +314,7 @@ typedef struct flubGuiTheme_s {
 
 #endif
 
-int flubGuiThemeInit(void);
+int flubGuiThemeInit(appDefaults_t *defaults);
 int flubGuiThemeValid(void);
 void flubGuiThemeShutdown(void);
 

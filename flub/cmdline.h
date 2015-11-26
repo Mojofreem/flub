@@ -2,14 +2,10 @@
 #define _FLUB_CMDLINE_HEADER_
 
 
-typedef enum {
-    eCMDLINE_OK = 1,
-    eCMDLINE_EXIT_SUCCESS,
-    eCMDLINE_EXIT_FAILURE
-} eCmdLineStatus_t;
+#include <flub/module.h>
+#include <flub/app.h>
+#include <flub/cmdline_handler.h>
 
-typedef eCmdLineStatus_t (*cmdlineOptHandler_t)(const char *name,
-                                                const char *arg, void *context);
 
 typedef struct cmdlineOption_s {
     const char *name;
@@ -24,9 +20,7 @@ typedef struct cmdlineOption_s {
 #define END_OF_CMDLINE_OPT_LIST     { NULL, 0, 0, NULL, NULL }
 
 
-typedef eCmdLineStatus_t (*cmdlineDefHandler_t)(const char *arg, void *context);
-
-int cmdlineInit(int argc, char **argv);
+int cmdlineInit(appDefaults_t *defaults);
 int cmdlineValid(void);
 void cmdlineShutdown(void);
 

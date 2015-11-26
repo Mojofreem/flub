@@ -17,6 +17,8 @@
 #include <flub/util/string.h>
 #include <stdio.h>
 #include <flub/util/color.h>
+#include <flub/module.h>
+
 
 #define FLUB_THEME_TOK_NUM      512
 #define FLUB_GUI_THEME_REV			1
@@ -78,7 +80,7 @@ static void _flubGuiThemeCleanup(flubGuiTheme_t *theme) {
 }
 #endif
 
-int flubGuiThemeInit(void) {
+int flubGuiThemeInit(appDefaults_t *defaults) {
     /*
     if(_guiThemeCtx.init) {
         error("Cannot initialize the theme module multiple times.");
@@ -114,6 +116,16 @@ void flubGuiThemeShutdown(void) {
     _guiThemeCtx.init = 0;
      */
 }
+
+
+static char *_initDeps[] = {"video", "texture", "font", NULL};
+flubModuleCfg_t flubModuleTheme = {
+    .name = "theme",
+    .init = flubGuiThemeInit,
+    .shutdown = flubGuiThemeShutdown,
+    .initDeps = _initDeps,
+};
+
 
 #if 0
 static void _flubGuiThemeRegister(flubGuiTheme_t *theme) {

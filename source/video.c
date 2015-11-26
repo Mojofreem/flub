@@ -31,7 +31,8 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <flub/3rdparty/stb/stb_image_write.h>
 #include <flub/data/critbit.h>
-
+#include <flub/module.h>
+#include <flub/app.h>
 
 // Direct linking GLEW:
 // * http://stackoverflow.com/questions/12397603/c-undefined-reference-to-imp-glewinit0
@@ -188,7 +189,7 @@ void _videoCloseDisplay(void) {
 
 int videoSettingsChangeCallback(const char *name, const char *value);
 
-int videoInit(void) {
+int videoInit(appDefaults_t *defaults) {
     if(_videoCtx.init) {
         warning("Ignoring attempt to re-initialize the video.");
         return 1;
@@ -286,11 +287,24 @@ int videoStart(void) {
     return 1;
 }
 
-void videoUpdate(void) {
+int videoUpdate(uint32_t ticks, uint32_t elapsed) {
     if(_videoCtx.active) {
         SDL_GL_SwapWindow(_videoCtx.window);
     }
+    return 1;
 }
+
+static char *_initDeps[] = {"sdl", "config", NULL};
+static char *_startDeps[] = {"config", "cmdline", NULL};
+flubModuleCfg_t flubModuleVideo = {
+    .name = "video",
+    .init = videoInit,
+    .start = videoStart,
+    .update = videoUpdate,
+    .shutdown = videoShutdown,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+};
 
 #define VID_RATIO_VARIANCE 0.05
 

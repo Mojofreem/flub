@@ -43,7 +43,7 @@ static void _flubSDLShiftMapInit(void) {
     _sdlCtx.shiftMap['/'] = '?';
 }
 
-int flubSDLInit(void) {
+int flubSDLInit(appDefaults_t *defaults) {
     if(_sdlCtx.init) {
         warning("Ignoring attempt to re-initialize SDL.");
         return 1;
@@ -83,6 +83,17 @@ void flubSDLShutdown(void) {
 
     _sdlCtx.init = 0;
 }
+
+
+static char *_initDeps[] = {"logger", NULL};
+
+flubModuleCfg_t flubModuleSDL = {
+    .name = "sdl",
+    .init = flubSDLInit,
+    .shutdown = flubSDLShutdown,
+    .initDeps = _initDeps,
+};
+
 
 int flubSDLTextInputFilter(SDL_Event *event, char *c) {
     int k;

@@ -1,4 +1,8 @@
 #include <flub/app.h>
+#include <flub/module.h>
+#include <flub/logger.h>
+#include <flub/memory.h>
+
 #include <flub/cmdline.h>
 #include <flub/sdl.h>
 #include <flub/physfsutil.h>
@@ -29,31 +33,36 @@
 #define DBG_CORE_DTL_GENERAL    1
 
 
-/*
-
-anim
-audio
-cmdline
-config
-console
-core
-font
-gfx
-gui
-input
-layout
-logger
-memory
-physfs
-texture
-theme
-thread
-video
-widget
-
-*/
+extern flubModuleCfg_t flubModuleLogger;
+extern flubModuleCfg_t flubModuleMemory;
+extern flubModuleCfg_t flubModuleCmdline;
+extern flubModuleCfg_t flubModuleSDL;
+extern flubModuleCfg_t flubModulePhysfs;
+extern flubModuleCfg_t flubModuleConfig;
+extern flubModuleCfg_t flubModuleVideo;
+extern flubModuleCfg_t flubModuleTexture;
+extern flubModuleCfg_t flubModuleFont;
+extern flubModuleCfg_t flubModuleGfx;
+extern flubModuleCfg_t flubModuleAudio;
+extern flubModuleCfg_t flubModuleInput;
+extern flubModuleCfg_t flubModuleConsole;
+extern flubModuleCfg_t flubModuleTheme;
 
 flubModuleCfg_t *_flubModules[] = {
+    &flubModuleLogger,
+    &flubModuleMemory,
+    &flubModuleCmdline,
+    &flubModuleSDL,
+    &flubModulePhysfs,
+    &flubModuleConfig,
+    &flubModuleVideo,
+    &flubModuleTexture,
+    &flubModuleFont,
+    &flubModuleGfx,
+    &flubModuleAudio,
+    &flubModuleInput,
+    &flubModuleConsole,
+    &flubModuleTheme,
     NULL,
 };
 
@@ -61,18 +70,20 @@ flubModuleCfg_t *_flubModules[] = {
 static struct {
     int launchedFromConsole;
     const char *progName;
+    flubModuleUpdateCB_t *update;
 } _flubAppCtx = {
     .launchedFromConsole = 1,
-    .progName = NULL,
 };
 
 
-int appUpdate(uint32_t ticks) {
-    gfxUpdate(ticks);
-    inputUpdate(ticks);
-    consoleUpdate(ticks);
+int appUpdate(uint32_t ticks, uint32_t elapsed) {
+    int k;
 
-    videoUpdate();
+    for(k = 0; _flubAppCtx.update[k] != NULL; k++) {
+        if(!_flubAppCtx.update[k](ticks, elapsed)) {
+            return 0;
+        }
+    }
 
     memFrameStackReset();
 
@@ -109,6 +120,9 @@ int appInit(int argc, char **argv) {
     const char *opt;
     int k;
 
+    appDefaults.argc = argc;
+    appDefaults.argv = argv;
+
     _flubAppCtx.launchedFromConsole = _appLaunchedFromConsole();
 
     if((opt = strrchr(argv[0], PLATFORM_PATH_SEP)) != NULL) {
@@ -117,33 +131,17 @@ int appInit(int argc, char **argv) {
 	    _flubAppCtx.progName = argv[0];
     }
 
-    if(!logInit()) {
+    for(k = 0; _flubModules[k] != NULL; k++) {
+        flubModuleRegister(_flubModules[k]);
+    }
+
+    if(!flubModulesInit(&appDefaults)) {
         return 0;
     }
 
     logDebugRegister("core", DBG_CORE, "general", DBG_CORE_DTL_GENERAL);
 
-    for(k = 0; _flubModules[k] != NULL; k++) {
-        flubModuleRegister(_flubModules[k]);
-    }
-
-    if((!memInit()) ||
-       (!memFrameStackInit(appDefaults.frameStackSize)) ||
-       (!cmdlineInit(argc, argv)) ||
-       (!flubSDLInit()) ||
-       (!flubPhysfsInit(argv[0])) ||
-       (!flubCfgInit()) ||
-       (!videoInit()) ||
-       (!texmgrInit()) ||
-       (!flubFontInit()) ||
-       (!gfxInit()) ||
-       (!audioInit()) ||
-       (!inputInit()) ||
-       (!consoleInit()) ||
-       (!flubGuiThemeInit())
-      ) {
-        return 0;
-    }
+    _flubAppCtx.update = flubModulesUpdateList();
 
 	return 1;
 }
@@ -153,27 +151,9 @@ int appLaunchedFromConsole(void) {
 }
 
 eCmdLineStatus_t appStart(void *cmdlineContext) {
-	const char *opt;
-    eCmdLineStatus_t status;
+    appDefaults.cmdlineContext = cmdlineContext;
 
-    opt = cmdlineGetAndRemoveOption("config", 'c', 1, "FILE",
-                                    "specify the configuration option file", NULL,
-                                    appDefaults.configFile);
-	flubCfgLoad(opt);
-	debug(DBG_CORE, DBG_LOG_DTL_APP, "Configuration system started.");
-
-	// Initialize the command line processing subsystem
-	status = cmdlineProcess(appDefaults.cmdlineHandler, cmdlineContext);
-	if(status != eCMDLINE_OK) {
-		return status;
-	}
-    debug(DBG_CORE, DBG_LOG_DTL_APP, "Command line parser completed.");
-
-	// Video bringup
-    if((!videoStart()) ||
-       (!flubFontStart()) ||
-       (!gfxStart()) ||
-       (!consoleStart())) {
+    if(!flubModulesStart()) {
         return eCMDLINE_EXIT_FAILURE;
     }
 
@@ -187,17 +167,5 @@ eCmdLineStatus_t appStart(void *cmdlineContext) {
 }
 
 void appShutdown(void) {
-    // console
-    // input
-    // audio
-    // gfx
-    // font
-    // texture
-    videoShutdown();
-    flubCfgShutdown();
-    flubPhysfsShutdown();
-    flubSDLShutdown();
-    cmdlineShutdown();
-    memShutdown();
-    logShutdown();
+    flubModulesShutdown();
 }

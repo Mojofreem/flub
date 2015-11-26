@@ -87,14 +87,26 @@ struct {
         },
 };
 
-int memInit(void) {
+int memInit(appDefaults_t *defaults) {
     logDebugRegister("profile", DBG_PROFILE, "frame", DBG_MEM_DTL_FRAME);
+    if(!memFrameStackInit(defaults->frameStackSize)) {
+        return 0;
+    }
     return 1;
 }
 
 void memShutdown(void) {
     memFrameStackStats();
 }
+
+flubModuleCfg_t flubModuleMemory = {
+    .name = "memory",
+    .init = memInit,
+    .start = NULL,
+    .shutdown = memShutdown,
+    .initDeps = NULL,
+    .startDeps = NULL,
+};
 
 
 #ifndef strndup

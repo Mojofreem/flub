@@ -17,11 +17,16 @@
 #include <ctype.h>
 #include <flub/flubconfig.h>
 #include <flub/app.h>
+#include <flub/util/color.h>
+#include <flub/module.h>
 
 
 //#define FLUB_CONSOLE_SHOW_DELAY		250
 #define FLUB_CONSOLE_SHOW_DELAY		150
 #define FLUB_CONSOLE_HEIGHT_RATIO	0.75
+#define FLUB_CONSOLE_BG_COLOR       "#333333"
+#define FLUB_CONSOLE_BG_ALPHA       0.85
+
 #define FLUB_CONSOLE_BUF_SIZE		8192
 #define FLUB_CONSOLE_MESH_SIZE		4096
 #define FLUB_CONSOLE_CMD_MESH_SIZE	256
@@ -98,6 +103,18 @@ struct {
 	};
 
 
+int _consoleVarValidator(const char *name, const char *value) {
+    return 1;
+}
+
+flubCfgOptList_t _consoleVars[] = {
+    {"console_bg", "", FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
+    {"console_alpha", "", FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
+    {"console_speed", STRINGIFY(FLUB_CONSOLE_SHOW_DELAY), FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
+    {"console_height", STRINGIFY(FLUB_CONSOLE_HEIGHT_RATIO), FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
+    FLUB_CFG_OPT_LIST_END
+};
+
 void _consoleLogCB( const logMessage_t *msg ) {
 	consolePrintf("%s: %s", msg->levelStr, msg->message);
 }
@@ -156,9 +173,22 @@ static void _consoleOpenHandler(SDL_Event *event, int pressed, int motion, int x
     }
 }
 
-int consoleInit(void) {
+void _consoleVarNotifyCB(const char *name, const char *value) {
+
+}
+
+int consoleInit(appDefaults_t *defaults) {
     _consoleCtx.openSound = audioSoundGet("resources/sounds/consoleopen.wav");
     _consoleCtx.closeSound = audioSoundGet("resources/sounds/consoleclose.wav");
+
+    if(!flubCfgOptListAdd(_consoleVars)) {
+        return 0;
+    }
+    if(!flubCfgPrefixNotifieeAdd("console_", _consoleVarNotifyCB)) {
+        return 0;
+    }
+
+    infof("COLOR: %d %x", COLOR_FTOI(0.2), COLOR_FTOI(0.2));
 
     return 1;
 }
@@ -445,8 +475,9 @@ static void _consoleCmdMeshRebuild(void) {
 	fontBlitStrNMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, _consoleCtx.cmdbuf + _consoleCtx.offset, count);
 }
 
-int consoleUpdate(Uint32 ticks) {
+int consoleUpdate(Uint32 ticks, Uint32 elapsed2) {
 	int display = 0;
+    // TODO - use the passed elapsed value
 	Uint32 elapsed = flubAnimTicksElapsed(&(_consoleCtx.lastTick), ticks);
 
 	if(_consoleCtx.visible) {
@@ -490,6 +521,20 @@ int consoleUpdate(Uint32 ticks) {
 	}
     return 1;
 }
+
+static char *_initDeps[] = {"video", "texture", "font", NULL};
+static char *_updatePreceed[] = {"video", NULL};
+static char *_startDeps[] = {"video", "font", NULL};
+flubModuleCfg_t flubModuleConsole = {
+    .name = "console",
+    .init = consoleInit,
+    .start = consoleStart,
+    .update = consoleUpdate,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+    .updatePreceed = _updatePreceed,
+};
+
 
 void consoleShow(int show) {
 	if(_consoleCtx.show != show) {

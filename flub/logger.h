@@ -2,6 +2,9 @@
 #define _FLUB_LOGGER_HEADER_
 
 
+#include <flub/module.h>
+
+
 #define DBG_CORE        1
 #define DBG_CMDLINE     2
 #define DBG_CONFIG      3
@@ -80,7 +83,7 @@ typedef struct logMessage_s {
 typedef void (*logCallback_t)( const logMessage_t *msg );
 
 
-int logInit(void);
+int logInit(appDefaults_t *defaults);
 int logValid(void);
 void logShutdown(void);
 

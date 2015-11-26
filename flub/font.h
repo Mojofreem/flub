@@ -8,6 +8,7 @@
 #endif // MACOSX
 #include <flub/font_struct.h>
 #include <flub/gfx.h>
+#include <flub/app.h>
 
 
 typedef struct fontColor_s {
@@ -17,7 +18,7 @@ typedef struct fontColor_s {
 } fontColor_t;
 
 
-int flubFontInit(void);
+int flubFontInit(appDefaults_t *defaults);
 int flubFontValid(void);
 int flubFontStart(void);
 void flubFontShutdown(void);

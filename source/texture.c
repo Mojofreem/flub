@@ -9,6 +9,7 @@
 #include <flub/util/string.h>
 #include <flub/util/parse.h>
 #include <flub/util/enum.h>
+#include <flub/module.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <flub/3rdparty/stb/stb_image.h>
@@ -137,7 +138,7 @@ static void _texmgrVideoNotifieeCB(int width, int height, int fullscreen) {
     mutexRelease(g_texmgrCtx.mutex);
 }
 
-int texmgrInit(void) {
+int texmgrInit(appDefaults_t *defaults) {
     if(g_texmgrCtx.init) {
         warning("Ignoring attempt to re-initialize the texture manager.");
         return 1;
@@ -184,6 +185,14 @@ void texmgrShutdown(void) {
 
     g_texmgrCtx.init = 0;
 }
+
+static char *_initDeps[] = {"video", NULL};
+flubModuleCfg_t flubModuleTexture = {
+    .name = "texture",
+    .init = texmgrInit,
+    .shutdown = texmgrShutdown,
+    .initDeps = _initDeps,
+};
 
 static void _texmgrAnonStore(texEntry_t *entry) {
     entry->next = g_texmgrCtx.anonEntries;

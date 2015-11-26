@@ -4,6 +4,7 @@
 #include <flub/stbfont.h>
 #include <flub/memory.h>
 #include <flub/util/color.h>
+#include <flub/module.h>
 
 
 #define FONT_BASE_SIZE  128
@@ -82,7 +83,7 @@ static void _fontLoadGLFont(fontIndex_t *font) {
     }
 }
 
-int flubFontInit(void) {
+int flubFontInit(appDefaults_t *defaults) {
     if(fontCtx.inited) {
         return 1;
     }
@@ -141,6 +142,17 @@ int flubFontStart(void) {
 
 void flubFontShutdown(void) {
 }
+
+static char *_initDeps[] = {"video", "texture", "physfs", NULL};
+static char *_startDeps[] = {"video", NULL};
+flubModuleCfg_t flubModuleFont = {
+    .name = "font",
+    .init = flubFontInit,
+    .start = flubFontStart,
+    .shutdown = flubFontShutdown,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+};
 
 static void _flubFontDetails(fontIndex_t *font) {
     flubStbFont_t *stb = &(font->stbfont);

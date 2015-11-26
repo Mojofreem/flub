@@ -29,7 +29,7 @@
 #include <flub/font.h>
 #include <ctype.h>
 #include <stdlib.h>
-
+#include <flub/module.h>
 
 //#define GFX_USE_INLINE_BLITTER
 
@@ -188,7 +188,7 @@ static void _gfxVideoNotifieeCB(int width, int height, int fullscreen) {
     }
 }
 
-int gfxInit(void) {
+int gfxInit(appDefaults_t *defaults) {
 	int k;
 
     if(_gfxCtx.init) {
@@ -219,7 +219,7 @@ int gfxInit(void) {
 	return 1;
 }
 
-void _gfxShutdown(void) {
+void gfxShutdown(void) {
     if(!_gfxCtx.init) {
         return;
     }
@@ -239,6 +239,20 @@ int gfxStart(void) {
 
     return 1;
 }
+
+static char *_initDeps[] = {"video", "texture", NULL};
+static char *_preceeds[] = {"video", "texture", NULL};
+static char *_startDeps[] = {"video", "font", NULL};
+flubModuleCfg_t flubModuleGfx = {
+    .name = "gfx",
+    .init = gfxInit,
+    .start = gfxStart,
+    .update = gfxUpdate,
+    .shutdown = gfxShutdown,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+    .updatePreceed = _preceeds,
+};
 
 void gfxColorSet(float red, float green, float blue) {
     _gfxCtx.red = red;
@@ -2539,7 +2553,7 @@ void gfxEffectUnregister(gfxEffect_t *effect) {
 }
 #endif
 
-void gfxUpdate(Uint32 ticks) {
+int gfxUpdate(Uint32 ticks, Uint32 elapsed) {
 #if 0
 	gfxEffect_t *effect, *last, *next, *walk;
 
@@ -2574,6 +2588,7 @@ void gfxUpdate(Uint32 ticks) {
 		}
 	}
 #endif
+    return 1;
 }
 
 

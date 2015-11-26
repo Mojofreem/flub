@@ -3,9 +3,10 @@
 
 
 #include <stddef.h>
+#include <flub/module.h>
 
 
-int memInit(void);
+int memInit(appDefaults_t *defaults);
 void memShutdown(void);
 
 

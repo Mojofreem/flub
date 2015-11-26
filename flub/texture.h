@@ -8,6 +8,7 @@
 #else // MACOSX
 #   include <gl/gl.h>
 #endif // MACOSX
+#include <flub/app.h>
 
 // Flub distinguishes between 3 types of textures:
 //     * anonymous - loaded and passed to the caller immediately. this resource
@@ -39,7 +40,7 @@ typedef struct texture_s
 #define textureAnimated(tptr)   ((tptr)->delay > 0)
 
 
-int texmgrInit(void);
+int texmgrInit(appDefaults_t *defaults);
 int texmgrValid(void);
 void texmgrShutdown(void);
 

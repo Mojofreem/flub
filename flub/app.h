@@ -3,7 +3,7 @@
 
 
 #include <stdint.h>
-#include <flub/cmdline.h>
+#include <flub/cmdline_handler.h>
 #include <physfs_memfile.h>
 
 
@@ -26,6 +26,9 @@ typedef struct appDefaults_s
 {
     int major;  ///< Specifies the application's major version number
     int minor;  ///< Specifies the application's minor version number
+    int argc;   ///< The number of command line parameters passed to the application
+    char **argv;///< Array of strings of command line parameters passed to the application
+    void *cmdlineContext;       ///< Pointer to application specific data structure for the command line parser
     const char *title;          ///< Specifies the application's title
     const char *configFile;     ///< Specifies the application's configuration variable file
     const char *bindingFile;    ///< Specifies the application's input binding file
@@ -112,7 +115,7 @@ void appShutdown(void);
 ///         wants to exit.
 ///
 ///////////////////////////////////////////////////////////////////////////////
-int appUpdate(uint32_t ticks);
+int appUpdate(uint32_t ticks, uint32_t elapsed);
 
 ///////////////////////////////////////////////////////////////////////////////
 ///

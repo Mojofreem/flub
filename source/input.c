@@ -17,6 +17,7 @@
 
 #include <flub/input_events.inc>
 #include <flub/logger.h>
+#include <flub/module.h>
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -163,7 +164,7 @@ static eCmdLineStatus_t _inputCmdlineActions(const char *name, const char *arg, 
 }
 
 
-int inputInit(void) {
+int inputInit(appDefaults_t *defaults) {
 	logDebugRegisterList("console", DBG_CONSOLE, _consoleDbg);
 
 	_inputEventRegistryBuild();
@@ -187,6 +188,14 @@ int inputInit(void) {
 
 void _inputShutdown(void) {
 }
+
+static char *_initDeps[] = {"sdl", NULL};
+flubModuleCfg_t flubModuleInput = {
+	.name = "input",
+	.init = inputInit,
+	.update = inputUpdate,
+	.initDeps = _initDeps,
+};
 
 void inputMousePosSet(int x, int y){
 	_inputCtx.mouseX = x;
@@ -651,10 +660,11 @@ int inputWaitEventTimeout(SDL_Event *event, int timeout) {
 	return 0;
 }
 
-void inputUpdate(Uint32 ticks) {
+int inputUpdate(Uint32 ticks, Uint32 elapsed) {
 	if(_inputCtx.showCursor) {
 		// TODO Update and display the mouse, if mouse cursor is enabled		
 	}
+	return 1;
 }
 
 int inputModeAdd(const char *name, int id) {

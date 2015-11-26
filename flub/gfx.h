@@ -15,6 +15,7 @@
 #endif // MACOSX
 #include <flub/texture.h>
 #include <flub/font_struct.h>
+#include <flub/app.h>
 
 
 #define GFX_X_COORDS	0
@@ -27,10 +28,10 @@
 #define SCALED_T_COORD(t,v)	(((2.0f * ((float)(v))) + 1.0f)/(2.0f * ((float)(t))))
 
 
-int gfxInit(void);
+int gfxInit(appDefaults_t *defaults);
 int gfxValid(void);
 int gfxStart(void);
-int gfxShutdown(void);
+void gfxShutdown(void);
 
 void gfxColorSet(float red, float green, float blue);
 void gfxAlphaSet(float alpha);
@@ -388,7 +389,7 @@ void gfxEffectRegister(gfxEffect_t *effect);
 void gfxEffectUnregister(gfxEffect_t *effect);
 #endif
 
-void gfxUpdate(Uint32 ticks);
+int gfxUpdate(Uint32 ticks, Uint32 elapsed);
 
 #if 0
 typedef struct flubColor_s {

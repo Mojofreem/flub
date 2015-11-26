@@ -11,7 +11,7 @@
 #include <flub/logger.h>
 #include <flub/cmdline.h>
 #include <flub/memory.h>
-
+#include <flub/module.h>
 
 // TODO Config should be able to export subtrees, and filter substrees
 //      This will help for logically splitting out certain functionality,
@@ -56,7 +56,7 @@ struct {
     int init;
 	critbit_t options;
 	int dirty;
-
+    appDefaults_t *app;
 	int enum_in_progress;
 
 	int server_mode;
@@ -70,11 +70,6 @@ struct {
 	.options = CRITBIT_TREE_INIT,
 	.dirty = 0,
 	.enum_in_progress = 0,
-	0,				// server_mode
-	NULL,			// server_request
-	NULL,			// server_notify
-	NULL,			// prefix_notifiees
-	NULL,			// all_notifiees
 };
 
 static int _flubCfgVarListEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
@@ -91,15 +86,10 @@ static eCmdLineStatus_t _flubCfgConfigListHandler(const char *name, const char *
     return eCMDLINE_EXIT_SUCCESS;
 }
 
-int flubCfgInit(void) {
+int flubCfgInit(appDefaults_t *defaults) {
     if(_flubCfgCtx.init) {
         warning("Ignoring attempt to re-initialize the logger.");
         return 1;
-    }
-
-    if(!logValid()) {
-        // The logger has not been initialized!
-        return 0;
     }
 
     if(!cmdlineValid()) {
@@ -112,7 +102,23 @@ int flubCfgInit(void) {
     cmdlineOptAdd("config-list", 0, 0, NULL, "List all configuration variables",
                   _flubCfgConfigListHandler);
 
+    _flubCfgCtx.app = defaults;
+
     _flubCfgCtx.init = 1;
+
+    return 1;
+}
+
+int flubCfgStart(void) {
+    const char *opt;
+
+    opt = cmdlineGetAndRemoveOption("config", 'c', 1, "FILE",
+                                    "specify the configuration option file", NULL,
+                                    _flubCfgCtx.app->configFile);
+    if(opt != NULL) {
+        flubCfgLoad(opt);
+    }
+    debug(DBG_CORE, DBG_LOG_DTL_APP, "Configuration system started.");
 
     return 1;
 }
@@ -131,6 +137,16 @@ void flubCfgShutdown(void) {
     _flubCfgCtx.init = 0;
 
 }
+
+static char *_initDeps[] = {"logger", "cmdline", NULL};
+flubModuleCfg_t flubModuleConfig = {
+    .name = "config",
+    .init = flubCfgInit,
+    .start = flubCfgStart,
+    .shutdown = flubCfgShutdown,
+    .initDeps = _initDeps,
+};
+
 
 void flubCfgServerMode(int mode) {
 	_flubCfgCtx.server_mode = mode;

@@ -1,4 +1,6 @@
 Flub
+color
+    use consistent color struct throughout flub
 console API improvements
     console output API
     console input API
@@ -19,6 +21,10 @@ console API improvements
         const char *name;
         consoleCmdParamValidator_t validator;
     } consoleCmdItem_t;
+
+input
+    provide filtered text input
+        (shift and ctrl mapping)
 
 screen capture
     letterbox capture

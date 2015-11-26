@@ -105,6 +105,7 @@ struct
 unsigned char g_LogDebugMask[256];
 #endif // FLUB_DEBUG
 
+
 #ifdef WIN32
 void logWin32FatalCallback(const logMessage_t *msg) {
     if(msg->level == eLogFatal) {
@@ -113,7 +114,7 @@ void logWin32FatalCallback(const logMessage_t *msg) {
 }
 #endif // WIN32
 
-int logInit(void) {
+int logInit(appDefaults_t *defaults) {
     int k;
 
     if(g_logCtx.init) {
@@ -163,6 +164,16 @@ void logShutdown(void) {
     mutexDestroy(g_logCtx.mutex);
     g_logCtx.mutex = NULL;
 }
+
+flubModuleCfg_t flubModuleLogger = {
+    .name = "logger",
+    .init = logInit,
+    .start = NULL,
+    .update = NULL,
+    .shutdown = logShutdown,
+    .initDeps = NULL,
+    .startDeps = NULL,
+};
 
 void logLevelSet(eLogLevel_t level) {
     mutexGrab(g_logCtx.mutex);

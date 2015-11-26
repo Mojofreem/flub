@@ -2,6 +2,7 @@
 #include <flub/gui.h>
 #include <flub/widget.h>
 #include <flub/memory.h>
+#include <flub/module.h>
 
 
 typedef struct _guiRootNode_s {
@@ -23,7 +24,7 @@ static struct {
         .active = 0,
     };
 
-int guiInit(void) {
+int guiInit(appDefaults_t *defaults) {
     if(_guiCtx.init) {
         error("Cannot initialize gui module multiple times.");
         return 1;
@@ -60,6 +61,17 @@ void guiShutdown(void) {
 
     _guiCtx.init = 0;
 }
+
+static char *_initDeps[] = {"video", "texture", "font", NULL};
+static char *_updatePreceed[] = {"video", NULL};
+flubModuleCfg_t flubModuleGUI = {
+    .name = "gui",
+    .init = guiInit,
+    .update = guiUpdate,
+    .shutdown = guiShutdown,
+    .initDeps = _initDeps,
+    .updatePreceed = _updatePreceed,
+};
 
 void guiWidgetAdd(widget_t *widget) {
     _guiRootNode_t *node;
@@ -99,7 +111,7 @@ static void _guiClean(void) {
     }
 }
 
-void guiUpdate(Uint32 ticks) {
+int guiUpdate(Uint32 ticks, Uint32 elapsed) {
     _guiRootNode_t *walk;
 
     for(walk = _guiCtx.widgets; walk != NULL; walk = walk->next) {
@@ -109,6 +121,7 @@ void guiUpdate(Uint32 ticks) {
     for(walk = _guiCtx.widgets; walk != NULL; walk = walk->next) {
         widgetRender(walk->widget);
     }
+    return 1;
 }
 
 static void _guiInputWalk(widget_t *widget, SDL_Event *event) {

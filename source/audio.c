@@ -6,6 +6,7 @@
 #include <string.h>
 #include <flub/memory.h>
 #include <PHYSFS_memfile.h>
+#include <flub/module.h>
 
 
 #define DBG_AUD_DTL_GENERAL 1
@@ -34,7 +35,7 @@ static void _audioShutdown(void) {
 	Mix_CloseAudio();
 }
 
-int audioInit(void) {
+int audioInit(appDefaults_t *defaults) {
 	if(_audioCtx.init) {
 		return 1;
 	}
@@ -135,3 +136,10 @@ void audioSoundRelease(sound_t *sound) {
 		}
 	}	
 }
+
+static char *_initDeps[] = {"sdl", NULL};
+flubModuleCfg_t flubModuleAudio = {
+	.name = "audio",
+	.init = audioInit,
+	.initDeps = _initDeps,
+};

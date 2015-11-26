@@ -32,6 +32,7 @@ struct {
     int init;
 	int argc;
 	char **argv;
+	appDefaults_t *app;
 	cmdlineOptList_t *options;
 } _cmdlineCtx = {
         .init = 0,
@@ -169,7 +170,7 @@ void cmdlineShutdown(void) {
     _cmdlineCtx.init = 0;
 }
 
-int cmdlineInit(int argc, char **argv) {
+int cmdlineInit(appDefaults_t *defaults) {
 	const char *opt;
 
     if(_cmdlineCtx.init) {
@@ -184,8 +185,9 @@ int cmdlineInit(int argc, char **argv) {
 
 	logDebugRegisterList("command", DBG_CMDLINE, _cmdlineDbg);
 
-	_cmdlineCtx.argc = argc;
-	_cmdlineCtx.argv = argv;
+	_cmdlineCtx.argc = defaults->argc;
+	_cmdlineCtx.argv = defaults->argv;
+	_cmdlineCtx.app = defaults;
 
     opt = cmdlineGetAndRemoveOption("logconsole", 0, 0, NULL, "enable logging to console shell", "true", "false");
 	if(!strcmp(opt, "true")) {
@@ -244,6 +246,30 @@ int cmdlineInit(int argc, char **argv) {
 
 	return 1;
 }
+
+int cmdlineStart(void) {
+    eCmdLineStatus_t status;
+
+	status = cmdlineProcess(appDefaults.cmdlineHandler, _cmdlineCtx.app->cmdlineContext);
+	if(status != eCMDLINE_OK) {
+		// TODO Bubble up the actual command line status
+		return 0;
+	}
+    debug(DBG_CORE, DBG_LOG_DTL_APP, "Command line parser completed.");
+    return 1;
+}
+
+static char *_initDeps[] = {"logger", NULL};
+static char *_startDeps[] = {"config", NULL};
+flubModuleCfg_t flubModuleCmdline = {
+	.name = "cmdline",
+	.init = cmdlineInit,
+	.start = cmdlineStart,
+	.shutdown = cmdlineShutdown,
+	.initDeps = _initDeps,
+	.startDeps = _startDeps,
+};
+
 
 int cmdlineValid(void) {
     return _cmdlineCtx.init;

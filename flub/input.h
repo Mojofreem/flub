@@ -3,13 +3,14 @@
 
 
 #include <SDL2/SDL.h>
+#include <flub/app.h>
 
 
 typedef void (*flubInputActionHandler_t)(SDL_Event *event, int pressed, int motion, int x, int y);
 typedef int (*flubInputEventTrap_t)(SDL_Event *event, int index);
 
 
-int inputInit(void);
+int inputInit(appDefaults_t *defaults);
 
 void inputMousePosSet(int x, int y);
 void inputMousePosGet(int *x, int *y);
@@ -31,7 +32,7 @@ int inputPollInit(int timeout);
 int inputPollEvent(SDL_Event *event);
 int inputWaitEventTimeout(SDL_Event *event, int timeout);
 int inputEventProcess(SDL_Event *event);
-void inputUpdate(Uint32 ticks);
+int inputUpdate(Uint32 ticks, Uint32 elapsed);
 
 int inputModeAdd(const char *name, int id);
 int inputModeRemove(int id);

@@ -5,16 +5,17 @@
 #include <flub/widget.h>
 #include <flub/theme.h>
 #include <flub/layout.h>
+#include <flub/app.h>
 
 
-int guiInit(void);
+int guiInit(appDefaults_t *defaults);
 int guiValid(void);
 void guiShutdown(void);
 
 void guiWidgetAdd(widget_t *widget);
 void guiWidgetRemove(widget_t *widget);
 
-void guiUpdate(Uint32 ticks);
+int guiUpdate(Uint32 ticks, Uint32 elapsed);
 int guiInput(SDL_Event *event);
 
 int guiMessage(int widgetId, int signal, void *context);

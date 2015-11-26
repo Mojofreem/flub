@@ -8,11 +8,13 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 #endif // MACOSX
+#include <flub/app.h>
+
 
 typedef Mix_Chunk sound_t;
 
 
-int audioInit(void);
+int audioInit(appDefaults_t *defaults);
 
 sound_t *audioSoundGet(const char *fname);
 void audioSoundRelease(sound_t *sound);
