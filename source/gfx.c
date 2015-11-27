@@ -306,13 +306,13 @@ void gfxDrawKey(font_t *font, const char *caption, int x, int y, int *width, int
 		keywidth = fontGetStrWidth(font, caption) + KEYCAP_HORZ_SPACER + KEYCAP_HORZ_SPACER;
 	}
 
-    fontSetColor(1.0, 1.0, 1.0);
+    fontSetColorByVal(1.0, 1.0, 1.0);
 	gfxSliceBlit(_gfxCtx.keycapSlice, x, y,
 				 x + keywidth,
 				 y + keyheight);
 	
 	fontMode();
-	fontSetColor(0.0, 0.0, 0.0);
+	fontSetColorByVal(0.0, 0.0, 0.0);
 	if(idx >= 0) {
 		gfxTexBlitSub(_gfxCtx.flubMisc,
 					  kx1, ky1, kx2, ky2,
@@ -1883,13 +1883,13 @@ void gfxKeycapBlit(font_t *font, const char *caption, int x, int y,
         keywidth = keyheight;
     }
 
-    fontSetColor(1.0, 1.0, 1.0);
+    fontSetColorByVal(1.0, 1.0, 1.0);
 	gfxSliceBlit(_gfxCtx.keycapSlice, x, y,
 				 x + keywidth + xoffset,
 				 y + keyheight);
 	
 	fontMode();
-	fontSetColor(0.0, 0.0, 0.0);
+	fontSetColorByVal(0.0, 0.0, 0.0);
 	if(idx >= 0) {
 		gfxTexBlitSub(_gfxCtx.flubMisc,
 					  kx1, ky1, kx2, ky2,
@@ -1937,16 +1937,16 @@ void gfxBlitKeyStr(font_t *font, const char *str, int x, int y, int *width, int 
     const char *key = "";
     int keywidth;
     int w = 0;
-    fontColor_t colors;
+    flubColor4f_t colors;
 
     gfxKeyMetrics(font, "", NULL, height, &yoffset);
 
-    fontGetColor3(&colors);
+    fontGetColor(&colors);
     for(;;) {
         if((key = _gfxFindMetaKey(str, &ptr, &end)) != NULL) {
             if(ptr != str) {
                 fontPos(x + w, y + yoffset);
-                fontSetColor3(&colors);
+                fontSetColor(&colors);
                 fontBlitStrN(font, str, ptr - str);
                 w += fontGetStrNWidth(font, str, ptr - str);
             }
@@ -1956,7 +1956,7 @@ void gfxBlitKeyStr(font_t *font, const char *str, int x, int y, int *width, int 
             w += keywidth;
         } else {
             fontPos(x + w, y + yoffset);
-            fontSetColor3(&colors);
+            fontSetColor(&colors);
             fontBlitStr(font, str);
             w += fontGetStrWidth(font, str);
             break;

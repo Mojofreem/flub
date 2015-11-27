@@ -100,6 +100,10 @@ struct {
 
     sound_t *openSound;
     sound_t *closeSound;
+
+    flubColor4f_t colorCursor;
+    flubColor4f_t colorCmdText;
+    flubColor4f_t colorOutText;
 } _consoleCtx = {
 		.show = 0,
 		.visible = 0,
@@ -125,6 +129,19 @@ struct {
 		.mesh = NULL,
         .openSound = NULL,
         .closeSound = NULL,
+        .colorCursor = {
+            .green = 1.0,
+        },
+        .colorCmdText = {
+            .red = 1.0,
+            .green = 1.0,
+            .blue = 1.0,
+        },
+        .colorOutText = {
+            .red = 0.7,
+            .green = 0.7,
+            .blue = 0.7,
+        },
 	};
 
 
@@ -475,7 +492,7 @@ static void _consoleCmdMeshRebuild(void) {
 
 	gfxMeshClear(_consoleCtx.cmdMesh);
 	fontPos(0, y);
-	fontSetColor(0.0, 1.0, 0.0);
+	fontSetColor(&(_consoleCtx.colorCursor));
 	if(_consoleCtx.offset) { // content is scrolled
 		fontBlitCMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, '<');
 	} else {
@@ -488,7 +505,7 @@ static void _consoleCmdMeshRebuild(void) {
 	fontBlitCMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, '_');
 
 	// Render the visible command line portion
-	fontSetColor(1.0, 1.0, 1.0);
+	fontSetColor(&(_consoleCtx.colorCmdText));
 	fontPos(fontGetCharWidth(_consoleCtx.cmdFont, '_'), y);
     if((_consoleCtx.cmdlen - _consoleCtx.offset) < _consoleCtx.charsPerLine) {
         count = _consoleCtx.cmdlen - _consoleCtx.offset;
@@ -605,7 +622,7 @@ static void _consoleMeshRebuild(void) {
     }
 
 	gfxMeshClear(_consoleCtx.mesh);
-	fontSetColor(1.0, 1.0, 1.0);
+	fontSetColor(&(_consoleCtx.colorOutText));
 	pos = _consoleCtx.height - (fontGetHeight(_consoleCtx.font) * 2);
 	for(line = count - 1; lines; line--) {
 		if(!circBufGetEntry(_consoleCtx.circbuf, line - scroll, ((void **)&buf), NULL)) {

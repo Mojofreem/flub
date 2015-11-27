@@ -5,6 +5,7 @@
 #include <flub/logger.h>
 #include <flub/util/enum.h>
 #include <flub/memory.h>
+#include <flub/util/color.h>
 
 
 #define JSMN_MAX_KEY_LEN    64
@@ -445,6 +446,8 @@ int jsmnObjColorVal(const char *json, jsmntok_t *token, const char *name,
                     int *red, int *green, int *blue) {
     jsmntok_t *tok;
     char buf[64];
+    flubColor4f_t color;
+    int result;
 
     if((tok = jsmnFindKey(json, token, name)) == NULL) {
         return 0;
@@ -458,7 +461,12 @@ int jsmnObjColorVal(const char *json, jsmntok_t *token, const char *name,
         return 0;
     }
 
-    return parseColor(buf, red, green, blue, NULL);
+    result = flubColorParse(buf, &color);
+    *red = COLOR_FTOI(color.red);
+    *green = COLOR_FTOI(color.green);
+    *blue = COLOR_FTOI(color.blue);
+
+    return result;
 }
 
 utilEnumMap_t _jsonParseTypeMap[] = {

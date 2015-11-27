@@ -8,6 +8,7 @@
 #include <flub/video.h>
 #include <flub/util/string.h>
 #include <flub/util/parse.h>
+#include <flub/util/color.h>
 #include <flub/util/enum.h>
 #include <flub/module.h>
 
@@ -545,12 +546,16 @@ int texmgrRegStr(const char *str) {
     int red = 0;
     int green = 0;
     int blue = 0;
+    flubColor4f_t color;
     
     strncpy(data, str, sizeof(data));
     count = strFields(data, '|', fields, 5);
     switch(count) {
         case 5:
-            if(parseColor(fields[4], &red, &green, &blue, NULL)) {
+            if(flubColorParse(fields[4], &color)) {
+                red = color.red;
+                green = color.green;
+                blue = color.blue;
                 colorkey = 1;
             } else {
                 errorf("Failed to parse the colorkey for texture \"%s\".", fields[0]);

@@ -44,6 +44,7 @@ typedef struct fontIndex_s {
 
 typedef struct fontCtx_S {
     int inited;
+    flubColor4f_t color;
     float red, green, blue, alpha;
     fontIndex_t *index;
     int x, y;
@@ -53,10 +54,12 @@ typedef struct fontCtx_S {
 
 fontCtx_t fontCtx = {
     .inited = 0,
-    .red = 1.0,
-    .green = 1.0,
-    .blue = 1.0,
-    .alpha = 1.0,
+    .color = {
+        .red = 1.0,
+        .green = 1.0,
+        .blue = 1.0,
+        .alpha = 1.0,
+    },
     .index = NULL,
     .x = 0,
     .y = 0,
@@ -134,10 +137,6 @@ int flubFontInit(appDefaults_t *defaults) {
     return 1;
 }
 
-int flubFontValid(void) {
-    return fontCtx.inited;
-}
-
 int flubFontStart(void) {
     GLuint vertexShader;
 
@@ -176,12 +175,6 @@ static void _flubFontDetails(fontIndex_t *font) {
     infof("NumChars: %d", stb->numChars);
     infof("lineSpacing: %d", stb->lineSpacing);
     infof("DataPtr: 0x%p", stb->data);
-#if 0
-    info("--------------------------------------------------");
-    for(int k = 0; k < stb->numChars; k++) {
-        infof("[%d] - (%d, %d) - (%d, %d) a:%d", k, stb->fontData->x0, stb->fontData->y0, stb->fontData->x1, stb->fontData->y1, stb->fontData->advance_int);
-    }
-#endif
     info("##################################################");
 }
 
@@ -881,6 +874,7 @@ int fontGetStrLenQCWrap(font_t *font, char *s, int maxwidth, int *strlen,
     int w;
     int a;
 	int width = 0, size, pos = 0, len;
+    flubColor4f_t color;
 
     if(font == NULL) { 
         return 0;
@@ -893,7 +887,10 @@ int fontGetStrLenQCWrap(font_t *font, char *s, int maxwidth, int *strlen,
 				*strlen = len;
 				return pos;
 			} else if(s[len] !='^') {
-				utilGetQCColorCode(s[len], red, green, blue);
+				flubColorQCCodeGet(s[len], &color);
+                *red = color.red;
+                *green = color.green;
+                *blue = color.blue;
 				continue;
 			}
 		}
@@ -918,6 +915,7 @@ int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
     int a;
     char *ptr, *lastp = NULL;
     int workwidth = 0, size, pos = 0, lasts = 0;
+    flubColor4f_t color;
 
     if(font == NULL) { 
         return 0;
@@ -930,7 +928,10 @@ int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
                 *strlen = pos;
                 return pos;
             } else if(*ptr !='^') {
-                utilGetQCColorCode(*ptr, red, green, blue);
+                flubColorQCCodeGet(*ptr, &color);
+                *red = color.red;
+                *green = color.green;
+                *blue = color.blue;
                 continue;
             }
         }
@@ -967,34 +968,45 @@ int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
     return pos;
 }
 
-void fontSetColor(float red, float green, float blue) {
-    // Set the openGL color, and store the value for vba mesh operations
-    gfxColorSet(red, green, blue);
-	//glColor3f(red, green, blue);
-    fontCtx.red = red;
-    fontCtx.green = green;
-    fontCtx.blue = blue;
+void fontSetColor(flubColor4f_t *color) {
+    float alpha;
+
+    gfxColorSet(color->red, color->green, color->blue);
+    alpha = color->alpha;
+    color->alpha = fontCtx.alpha;
+    flubColorCopy(color, &(fontCtx.color));
+    color->alpha = alpha;
 }
 
-void fontSetColorAlpha(float red, float green, float blue, float alpha) {
-    // Set the openGL color, and store the value for vba mesh operations
-    gfxColorSet(red, green, blue);
-    gfxAlphaSet(alpha);
-    //glColor3f(red, green, blue);
-    fontCtx.red = red;
-    fontCtx.green = green;
-    fontCtx.blue = blue;
-    fontCtx.alpha = alpha;
+void fontSetColorByVal(float red, float green, float blue) {
+    flubColor4f_t color;
+
+    color.red = red;
+    color.green = green;
+    color.blue = blue;
+
+    fontSetColor(&color);
 }
 
-void fontGetColor3(fontColor_t *colors) {
-    colors->red = fontCtx.red;
-    colors->green = fontCtx.green;
-    colors->blue = fontCtx.blue;
+void fontSetColorAlpha(flubColor4f_t *color) {
+    gfxColorSet(color->red, color->green, color->blue);
+    gfxAlphaSet(color->alpha);
+    flubColorCopy(color, &(fontCtx.color));
 }
 
-void fontSetColor3(fontColor_t *colors) {
-    fontSetColor(colors->red, colors->green, colors->blue);
+void fontSetColorAlphaByVal(float red, float green, float blue, float alpha) {
+    flubColor4f_t color;
+
+    color.red = red;
+    color.green = green;
+    color.blue = blue;
+    color.alpha = alpha;
+
+    fontSetColorAlpha(&color);
+}
+
+void fontGetColor(flubColor4f_t *color) {
+    flubColorCopy(&(fontCtx.color), color);
 }
 
 void fontBlitC(const font_t *font, char c) {
@@ -1078,6 +1090,7 @@ void fontBlitStrf(const font_t *font, char *fmt, ...) {
 
 void fontBlitQCStr(font_t *font, char *s) {
     fontIndex_t *work = (fontIndex_t *)font;
+    flubColor4f_t color;
     float red, green, blue;
 	int run, k;
 	char *ptr;
@@ -1119,11 +1132,8 @@ void fontBlitQCStr(font_t *font, char *s) {
 			} else if(*s == '\0') {
 				break;
 			} else {
-                utilGetQCColorCode(*s, &red, &green, &blue);
-                fontCtx.red = red;
-                fontCtx.green = green;
-                fontCtx.blue = blue;
-				utilSetQCColorCode(*s);
+                flubColorQCCodeGet(*s, &color);
+                fontSetColor(&color);
 			}
 			s++;
 		} while((ptr = strchr(s, '^')) != NULL);
@@ -1289,6 +1299,7 @@ void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s) {
     float red, green, blue;
     int run, k;
     char *ptr;
+    flubColor4f_t color;
 
     mesh->program = fontCtx.stbfontProgram;
 
@@ -1328,11 +1339,8 @@ void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s) {
             } else if(*s == '\0') {
                 break;
             } else {
-                utilGetQCColorCode(*s, &red, &green, &blue);
-                fontCtx.red = red;
-                fontCtx.green = green;
-                fontCtx.blue = blue;
-                utilSetQCColorCode(*s);
+                flubColorQCCodeGet(*s, &color);
+                fontSetColor(&color);
             }
             s++;
         } while((ptr = strchr(s, '^')) != NULL);

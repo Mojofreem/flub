@@ -8,13 +8,7 @@
 #endif // MACOSX
 #include <flub/font_struct.h>
 #include <flub/gfx.h>
-
-
-typedef struct fontColor_s {
-    float red;
-    float green;
-    float blue;
-} fontColor_t;
+#include <flub/util/color.h>
 
 
 int flubFontLoad(const char *filename);
@@ -45,10 +39,11 @@ int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
                             char **next, int *width,
                             float *red, float *green, float *blue);
 
-void fontSetColor(float red, float green, float blue);
-void fontSetColorAlpha(float red, float green, float blue, float alpha);
-void fontGetColor3(fontColor_t *colors);
-void fontSetColor3(fontColor_t *colors);
+void fontSetColor(flubColor4f_t *color);
+void fontSetColorByVal(float red, float green, float blue);
+void fontSetColorAlpha(flubColor4f_t *color);
+void fontSetColorAlphaByVal(float red, float green, float blue, float alpha);
+void fontGetColor(flubColor4f_t *color);
 
 void fontBlitC(const font_t *font, char c);
 void fontBlitStr(const font_t *font, const char *s);
