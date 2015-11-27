@@ -31,6 +31,33 @@
 #include <stdlib.h>
 #include <flub/module.h>
 
+
+/////////////////////////////////////////////////////////////////////////////
+// gfx module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubGfxInit(appDefaults_t *defaults);
+int flubGfxStart(void);
+int flubGfxUpdate(Uint32 ticks, Uint32 elapsed);
+void flubGfxShutdown(void);
+
+static char *_initDeps[] = {"video", "texture", NULL};
+static char *_preceeds[] = {"video", "texture", NULL};
+static char *_startDeps[] = {"video", "font", NULL};
+flubModuleCfg_t flubModuleGfx = {
+    .name = "gfx",
+    .init = flubGfxInit,
+    .start = flubGfxStart,
+    .update = flubGfxUpdate,
+    .shutdown = flubGfxShutdown,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+    .updatePreceed = _preceeds,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 //#define GFX_USE_INLINE_BLITTER
 
 #define GFX_TRACE       1
@@ -188,22 +215,12 @@ static void _gfxVideoNotifieeCB(int width, int height, int fullscreen) {
     }
 }
 
-int gfxInit(appDefaults_t *defaults) {
+int flubGfxInit(appDefaults_t *defaults) {
 	int k;
 
     if(_gfxCtx.init) {
         warning("Cannot initialize the gfx module multiple times.");
         return 1;
-    }
-
-    if(!logValid()) {
-        // The logger has not been initialized!
-        return 0;
-    }
-
-    if(!videoValid()) {
-        fatal("Cannot initialize the gfx module: video is not initialized");
-        return 0;
     }
 
     logDebugRegister("gfx", DBG_GFX, "trace", GFX_TRACE);
@@ -219,7 +236,7 @@ int gfxInit(appDefaults_t *defaults) {
 	return 1;
 }
 
-void gfxShutdown(void) {
+void flubGfxShutdown(void) {
     if(!_gfxCtx.init) {
         return;
     }
@@ -231,7 +248,7 @@ void gfxShutdown(void) {
     _gfxCtx.init = 1;
 }
 
-int gfxStart(void) {
+int flubGfxStart(void) {
 	_gfxCtx.flubMisc = texmgrGet("flub-keycap-misc");
 	_gfxCtx.keycapSlice = gfxSliceCreate(_gfxCtx.flubMisc, GFX_SLICE_NOTILE_ALL,
                                          41, 0, 46, 5, 52, 11, 57, 16);
@@ -239,20 +256,6 @@ int gfxStart(void) {
 
     return 1;
 }
-
-static char *_initDeps[] = {"video", "texture", NULL};
-static char *_preceeds[] = {"video", "texture", NULL};
-static char *_startDeps[] = {"video", "font", NULL};
-flubModuleCfg_t flubModuleGfx = {
-    .name = "gfx",
-    .init = gfxInit,
-    .start = gfxStart,
-    .update = gfxUpdate,
-    .shutdown = gfxShutdown,
-    .initDeps = _initDeps,
-    .startDeps = _startDeps,
-    .updatePreceed = _preceeds,
-};
 
 void gfxColorSet(float red, float green, float blue) {
     _gfxCtx.red = red;
@@ -2553,7 +2556,7 @@ void gfxEffectUnregister(gfxEffect_t *effect) {
 }
 #endif
 
-int gfxUpdate(Uint32 ticks, Uint32 elapsed) {
+int flubGfxUpdate(Uint32 ticks, Uint32 elapsed) {
 #if 0
 	gfxEffect_t *effect, *last, *next, *walk;
 

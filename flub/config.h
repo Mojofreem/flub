@@ -2,9 +2,6 @@
 #define _FLUB_CONFIG_HEADER_
 
 
-#include <flub/app.h>
-
-
 #define FLUB_CFG_FLAG_DIRTY		0x1
 #define FLUB_CFG_FLAG_CLIENT    0x2
 #define FLUB_CFG_FLAG_SERVER    0x4
@@ -27,10 +24,6 @@ typedef struct flubCfgOptList_s {
 
 #define FLUB_CFG_OPT_LIST_END {NULL, NULL, 0, NULL}
 
-
-int flubCfgInit(appDefaults_t *defaults);
-int flubCfgValid(void);
-void flubCfgShutdown(void);
 
 void flubCfgServerMode(int mode);
 int flubCfgIsServerMode(void);

@@ -12,7 +12,6 @@
 #	include <gl/glext.h>
 #	include <gl/glu.h>
 #endif // MACOSX
-#include <flub/app.h>
 
 
 #define DBG_VID_DTL_SHADERS     1
@@ -20,13 +19,6 @@
 
 extern const int *const videoWidth;
 extern const int *const videoHeight;
-
-
-int videoInit(appDefaults_t *defaults);
-int videoValid(void);
-void videoShutdown(void);
-int videoStart(void);
-int videoUpdate(uint32_t ticks, uint32_t elapsed);
 
 typedef enum {
     eVideoRatio_unknown = 0,

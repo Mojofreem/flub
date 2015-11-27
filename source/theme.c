@@ -19,6 +19,23 @@
 #include <flub/util/color.h>
 #include <flub/module.h>
 
+/////////////////////////////////////////////////////////////////////////////
+// theme module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubGuiThemeInit(appDefaults_t *defaults);
+void flubGuiThemeShutdown(void);
+
+static char *_initDeps[] = {"video", "texture", "font", NULL};
+flubModuleCfg_t flubModuleTheme = {
+    .name = "theme",
+    .init = flubGuiThemeInit,
+    .shutdown = flubGuiThemeShutdown,
+    .initDeps = _initDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 #define FLUB_THEME_TOK_NUM      512
 #define FLUB_GUI_THEME_REV			1
@@ -116,16 +133,6 @@ void flubGuiThemeShutdown(void) {
     _guiThemeCtx.init = 0;
      */
 }
-
-
-static char *_initDeps[] = {"video", "texture", "font", NULL};
-flubModuleCfg_t flubModuleTheme = {
-    .name = "theme",
-    .init = flubGuiThemeInit,
-    .shutdown = flubGuiThemeShutdown,
-    .initDeps = _initDeps,
-};
-
 
 #if 0
 static void _flubGuiThemeRegister(flubGuiTheme_t *theme) {

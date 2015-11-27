@@ -9,6 +9,22 @@
 #include <flub/module.h>
 
 
+/////////////////////////////////////////////////////////////////////////////
+// audio module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubAudioInit(appDefaults_t *defaults);
+
+static char *_initDeps[] = {"sdl", NULL};
+flubModuleCfg_t flubModuleAudio = {
+	.name = "audio",
+	.init = flubAudioInit,
+	.initDeps = _initDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 #define DBG_AUD_DTL_GENERAL 1
 
 
@@ -35,7 +51,7 @@ static void _audioShutdown(void) {
 	Mix_CloseAudio();
 }
 
-int audioInit(appDefaults_t *defaults) {
+int flubAudioInit(appDefaults_t *defaults) {
 	if(_audioCtx.init) {
 		return 1;
 	}
@@ -137,9 +153,3 @@ void audioSoundRelease(sound_t *sound) {
 	}	
 }
 
-static char *_initDeps[] = {"sdl", NULL};
-flubModuleCfg_t flubModuleAudio = {
-	.name = "audio",
-	.init = audioInit,
-	.initDeps = _initDeps,
-};

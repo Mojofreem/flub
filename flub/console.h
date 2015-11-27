@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <SDL2/SDL.h>
 #include <flub/texture.h>
-#include <flub/app.h>
 
 
 typedef void (*consoleCmdHandler_t)(const char *name, int paramc, char **paramv);
@@ -17,10 +16,6 @@ typedef struct consoleCmd_s {
     consoleCmdHandler_t hint;
 } consoleCmd_t;
 
-
-int consoleInit(appDefaults_t *defaults);
-int consoleStart(void);
-int consoleUpdate(Uint32 ticks, Uint32 elapsed);
 
 int consoleCmdRegister(const char *name, const char *help, consoleCmdHandler_t handler, consoleCmdHandler_t hint);
 int consoleCmdUnregister(const char *name);

@@ -36,6 +36,31 @@
 #define FLUB_CONSOLE_MAX_TOKENS     64
 
 
+/////////////////////////////////////////////////////////////////////////////
+// console module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubConsoleInit(appDefaults_t *defaults);
+int flubConsoleStart(void);
+int flubConsoleUpdate(Uint32 ticks, Uint32 elapsed);
+void flubConsoleShutdown(void);
+
+static char *_initDeps[] = {"video", "texture", "font", NULL};
+static char *_updatePreceed[] = {"video", NULL};
+static char *_startDeps[] = {"video", "font", NULL};
+flubModuleCfg_t flubModuleConsole = {
+    .name = "console",
+    .init = flubConsoleInit,
+    .start = flubConsoleStart,
+    .update = flubConsoleUpdate,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+    .updatePreceed = _updatePreceed,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 typedef struct consoleCmdEntry_s {
     char *help;
     consoleCmdHandler_t handler;
@@ -161,7 +186,7 @@ static void _consoleShiftMapInit(void) {
     _consoleCtx.shiftMap['/'] = '?';
 }
 
-static void _consoleShutdown(void) {
+void flubConsoleShutdown(void) {
 	logRemoveNotifiee(_consoleLogCB);
 
 	videoRemoveNotifiee(_consoleVideoCallback);
@@ -177,7 +202,7 @@ void _consoleVarNotifyCB(const char *name, const char *value) {
 
 }
 
-int consoleInit(appDefaults_t *defaults) {
+int flubConsoleInit(appDefaults_t *defaults) {
     _consoleCtx.openSound = audioSoundGet("resources/sounds/consoleopen.wav");
     _consoleCtx.closeSound = audioSoundGet("resources/sounds/consoleclose.wav");
 
@@ -203,7 +228,7 @@ static void _consoleClear(const char *name, int paramc, char **paramv);
 static void _consoleClose(const char *name, int paramc, char **paramv);
 static void _consoleVersion(const char *name, int paramc, char **paramv);
 
-int consoleStart(void) {
+int flubConsoleStart(void) {
     _consoleCtx.cmdbuf[0] = '\0';
     _consoleShiftMapInit();
 
@@ -250,8 +275,6 @@ int consoleStart(void) {
     _consoleCmdMeshRebuild();
 
     logAddNotifiee(_consoleLogCB);
-
-    atexit(_consoleShutdown);
 
     return 1;
 }
@@ -475,7 +498,7 @@ static void _consoleCmdMeshRebuild(void) {
 	fontBlitStrNMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, _consoleCtx.cmdbuf + _consoleCtx.offset, count);
 }
 
-int consoleUpdate(Uint32 ticks, Uint32 elapsed2) {
+int flubConsoleUpdate(Uint32 ticks, Uint32 elapsed2) {
 	int display = 0;
     // TODO - use the passed elapsed value
 	Uint32 elapsed = flubAnimTicksElapsed(&(_consoleCtx.lastTick), ticks);
@@ -521,20 +544,6 @@ int consoleUpdate(Uint32 ticks, Uint32 elapsed2) {
 	}
     return 1;
 }
-
-static char *_initDeps[] = {"video", "texture", "font", NULL};
-static char *_updatePreceed[] = {"video", NULL};
-static char *_startDeps[] = {"video", "font", NULL};
-flubModuleCfg_t flubModuleConsole = {
-    .name = "console",
-    .init = consoleInit,
-    .start = consoleStart,
-    .update = consoleUpdate,
-    .initDeps = _initDeps,
-    .startDeps = _startDeps,
-    .updatePreceed = _updatePreceed,
-};
-
 
 void consoleShow(int show) {
 	if(_consoleCtx.show != show) {

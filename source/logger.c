@@ -13,6 +13,26 @@
 #endif // WIN32
 #include <flub/cmdline.h>
 
+/////////////////////////////////////////////////////////////////////////////
+// logger module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubLogInit(appDefaults_t *defaults);
+void flubLogShutdown(void);
+
+flubModuleCfg_t flubModuleLogger = {
+    .name = "logger",
+    .init = flubLogInit,
+    .start = NULL,
+    .update = NULL,
+    .shutdown = flubLogShutdown,
+    .initDeps = NULL,
+    .startDeps = NULL,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+// 
+/////////////////////////////////////////////////////////////////////////////
 
 #define LOG_DBG_PLACEHOLDER 256
 
@@ -114,7 +134,7 @@ void logWin32FatalCallback(const logMessage_t *msg) {
 }
 #endif // WIN32
 
-int logInit(appDefaults_t *defaults) {
+int flubLogInit(appDefaults_t *defaults) {
     int k;
 
     if(g_logCtx.init) {
@@ -146,7 +166,7 @@ int logValid(void) {
     return g_logCtx.init;
 }
 
-void logShutdown(void) {
+void flubLogShutdown(void) {
     logNotifiee_t *walk, *next;
 
     mutexGrab(g_logCtx.mutex);
@@ -164,16 +184,6 @@ void logShutdown(void) {
     mutexDestroy(g_logCtx.mutex);
     g_logCtx.mutex = NULL;
 }
-
-flubModuleCfg_t flubModuleLogger = {
-    .name = "logger",
-    .init = logInit,
-    .start = NULL,
-    .update = NULL,
-    .shutdown = logShutdown,
-    .initDeps = NULL,
-    .startDeps = NULL,
-};
 
 void logLevelSet(eLogLevel_t level) {
     mutexGrab(g_logCtx.mutex);

@@ -7,6 +7,28 @@
 #include <flub/module.h>
 
 
+/////////////////////////////////////////////////////////////////////////////
+// font module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubFontInit(appDefaults_t *defaults);
+int flubFontStart(void);
+void flubFontShutdown(void);
+
+static char *_initDeps[] = {"video", "texture", "physfs", NULL};
+static char *_startDeps[] = {"video", NULL};
+flubModuleCfg_t flubModuleFont = {
+    .name = "font",
+    .init = flubFontInit,
+    .start = flubFontStart,
+    .shutdown = flubFontShutdown,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 #define FONT_BASE_SIZE  128
 #define FNT_TRACE       1
 
@@ -93,11 +115,6 @@ int flubFontInit(appDefaults_t *defaults) {
         return 0;
     }
 
-    if(!videoValid()) {
-        fatal("Cannot initialize font module: video is not initialized");
-        return 0;
-    }
-
     logDebugRegister("font", DBG_FONT, "trace", FNT_TRACE);
 
     if(!flubFontLoad("resources/font/courier.12.stbfont")) {
@@ -142,17 +159,6 @@ int flubFontStart(void) {
 
 void flubFontShutdown(void) {
 }
-
-static char *_initDeps[] = {"video", "texture", "physfs", NULL};
-static char *_startDeps[] = {"video", NULL};
-flubModuleCfg_t flubModuleFont = {
-    .name = "font",
-    .init = flubFontInit,
-    .start = flubFontStart,
-    .shutdown = flubFontShutdown,
-    .initDeps = _initDeps,
-    .startDeps = _startDeps,
-};
 
 static void _flubFontDetails(fontIndex_t *font) {
     flubStbFont_t *stb = &(font->stbfont);

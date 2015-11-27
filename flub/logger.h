@@ -83,9 +83,7 @@ typedef struct logMessage_s {
 typedef void (*logCallback_t)( const logMessage_t *msg );
 
 
-int logInit(appDefaults_t *defaults);
 int logValid(void);
-void logShutdown(void);
 
 void logLevelSet(eLogLevel_t level);
 void logLevelSetStr(const char *str);

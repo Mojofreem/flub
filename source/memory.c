@@ -15,9 +15,29 @@
 
 #define DBG_MEM_DTL_FRAME       1
 
-
 #define MEM_FRAME_MARKER_COUNT              20
 #define MEM_FRAME_STACK_INCREASE_PADDING    8192
+
+
+/////////////////////////////////////////////////////////////////////////////
+// memory module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubMemInit(appDefaults_t *defaults);
+void flubMemShutdown(void);
+
+flubModuleCfg_t flubModuleMemory = {
+    .name = "memory",
+    .init = flubMemInit,
+    .start = NULL,
+    .shutdown = flubMemShutdown,
+    .initDeps = NULL,
+    .startDeps = NULL,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 
 
 typedef struct _memFrameDangle_s {
@@ -87,7 +107,7 @@ struct {
         },
 };
 
-int memInit(appDefaults_t *defaults) {
+int flubMemInit(appDefaults_t *defaults) {
     logDebugRegister("profile", DBG_PROFILE, "frame", DBG_MEM_DTL_FRAME);
     if(!memFrameStackInit(defaults->frameStackSize)) {
         return 0;
@@ -95,19 +115,9 @@ int memInit(appDefaults_t *defaults) {
     return 1;
 }
 
-void memShutdown(void) {
+void flubMemShutdown(void) {
     memFrameStackStats();
 }
-
-flubModuleCfg_t flubModuleMemory = {
-    .name = "memory",
-    .init = memInit,
-    .start = NULL,
-    .shutdown = memShutdown,
-    .initDeps = NULL,
-    .startDeps = NULL,
-};
-
 
 #ifndef strndup
 #ifndef MACOSX

@@ -3,14 +3,11 @@
 
 
 #include <SDL2/SDL.h>
-#include <flub/app.h>
 
 
 typedef void (*flubInputActionHandler_t)(SDL_Event *event, int pressed, int motion, int x, int y);
 typedef int (*flubInputEventTrap_t)(SDL_Event *event, int index);
 
-
-int inputInit(appDefaults_t *defaults);
 
 void inputMousePosSet(int x, int y);
 void inputMousePosGet(int *x, int *y);

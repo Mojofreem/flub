@@ -8,6 +8,22 @@
 #include <resources/flub_resources.h>
 
 
+/////////////////////////////////////////////////////////////////////////////
+// physfs module
+/////////////////////////////////////////////////////////////////////////////
+
+int flubPhysfsInit(appDefaults_t *defaults);
+void flubPhysfsShutdown(void);
+
+flubModuleCfg_t flubModulePhysfs = {
+    .name = "physfs",
+    .init = flubPhysfsInit,
+    .shutdown = flubPhysfsShutdown,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 struct {
     int init;
 } _physfsCtx = {
@@ -109,12 +125,6 @@ void flubPhysfsShutdown(void) {
 
     PHYSFS_deinit();
 }
-
-flubModuleCfg_t flubModulePhysfs = {
-    .name = "physfs",
-    .init = flubPhysfsInit,
-    .shutdown = flubPhysfsShutdown,
-};
 
 char *PHYSFS_gets(char *str, int maxlen, PHYSFS_File *handle) {
     char byte, *ptr;

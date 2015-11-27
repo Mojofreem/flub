@@ -15,7 +15,6 @@
 #endif // MACOSX
 #include <flub/texture.h>
 #include <flub/font_struct.h>
-#include <flub/app.h>
 
 
 #define GFX_X_COORDS	0
@@ -27,11 +26,6 @@
 // http://stackoverflow.com/questions/5879403/opengl-texture-coordinates-in-pixel-space
 #define SCALED_T_COORD(t,v)	(((2.0f * ((float)(v))) + 1.0f)/(2.0f * ((float)(t))))
 
-
-int gfxInit(appDefaults_t *defaults);
-int gfxValid(void);
-int gfxStart(void);
-void gfxShutdown(void);
 
 void gfxColorSet(float red, float green, float blue);
 void gfxAlphaSet(float alpha);

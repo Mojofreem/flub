@@ -34,6 +34,30 @@
 #include <flub/module.h>
 #include <flub/app.h>
 
+/////////////////////////////////////////////////////////////////////////////
+// video module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubVideoInit(appDefaults_t *defaults);
+int flubVideoStart(void);
+int flubVideoUpdate(Uint32 ticks, Uint32 elapsed);
+void flubVideoShutdown(void);
+
+static char *_initDeps[] = {"sdl", "config", NULL};
+static char *_startDeps[] = {"config", "cmdline", NULL};
+flubModuleCfg_t flubModuleVideo = {
+    .name = "video",
+    .init = flubVideoInit,
+    .start = flubVideoStart,
+    .update = flubVideoUpdate,
+    .shutdown = flubVideoShutdown,
+    .initDeps = _initDeps,
+    .startDeps = _startDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 // Direct linking GLEW:
 // * http://stackoverflow.com/questions/12397603/c-undefined-reference-to-imp-glewinit0
 
@@ -189,24 +213,14 @@ void _videoCloseDisplay(void) {
 
 int videoSettingsChangeCallback(const char *name, const char *value);
 
-int videoInit(appDefaults_t *defaults) {
+int flubVideoInit(appDefaults_t *defaults) {
     if(_videoCtx.init) {
         warning("Ignoring attempt to re-initialize the video.");
         return 1;
     }
 
-    if(!logValid()) {
-        // The logger has not been initialized!
-        return 0;
-    }
-
     logDebugRegister("video", DBG_VIDEO, "shaders", DBG_VID_DTL_SHADERS);
     logDebugRegister("video", DBG_VIDEO, "capture", DBG_VID_DTL_CAPTURE);
-
-    if(!flubCfgValid()) {
-        fatal("Cannot initialize the video module: config was not initialized");
-        return 0;
-    }
 
     if(!flubCfgOptAdd("videomode", appDefaults.videoMode,
                       FLUB_CFG_FLAG_CLIENT,
@@ -232,11 +246,7 @@ int videoInit(appDefaults_t *defaults) {
     return 1;
 }
 
-int videoValid(void) {
-    return _videoCtx.init;
-}
-
-void videoShutdown(void) {
+void flubVideoShutdown(void) {
     if(!_videoCtx.init) {
         return;
     }
@@ -249,7 +259,7 @@ void videoShutdown(void) {
 
 static void _videoScreenshotHandler(SDL_Event *event, int pressed, int motion, int x, int y);
 
-int videoStart(void) {
+int flubVideoStart(void) {
     const char *mode;
     int w, h;
 
@@ -287,24 +297,12 @@ int videoStart(void) {
     return 1;
 }
 
-int videoUpdate(uint32_t ticks, uint32_t elapsed) {
+int flubVideoUpdate(uint32_t ticks, uint32_t elapsed) {
     if(_videoCtx.active) {
         SDL_GL_SwapWindow(_videoCtx.window);
     }
     return 1;
 }
-
-static char *_initDeps[] = {"sdl", "config", NULL};
-static char *_startDeps[] = {"config", "cmdline", NULL};
-flubModuleCfg_t flubModuleVideo = {
-    .name = "video",
-    .init = videoInit,
-    .start = videoStart,
-    .update = videoUpdate,
-    .shutdown = videoShutdown,
-    .initDeps = _initDeps,
-    .startDeps = _startDeps,
-};
 
 #define VID_RATIO_VARIANCE 0.05
 

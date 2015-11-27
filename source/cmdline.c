@@ -22,6 +22,28 @@
 #define CMDLINE_OPTION_LINE_LEN 79
 
 
+/////////////////////////////////////////////////////////////////////////////
+// cmdline module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubCmdlineInit(appDefaults_t *defaults);
+int flubCmdlineStart(void);
+void flubCmdlineShutdown(void);
+
+static char *_initDeps[] = {"logger", NULL};
+static char *_startDeps[] = {"config", NULL};
+flubModuleCfg_t flubModuleCmdline = {
+	.name = "cmdline",
+	.init = flubCmdlineInit,
+	.start = flubCmdlineStart,
+	.shutdown = flubCmdlineShutdown,
+	.initDeps = _initDeps,
+	.startDeps = _startDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 typedef struct cmdlineOptList_s {
 	cmdlineOption_t option;
 	const char *shortName;
@@ -158,7 +180,7 @@ static eCmdLineStatus_t _cmdlineVersionHandler(const char *name, const char *arg
     return eCMDLINE_EXIT_SUCCESS;
 }
 
-void cmdlineShutdown(void) {
+void flubCmdlineShutdown(void) {
     if(!_cmdlineCtx.init) {
         return;
     }
@@ -170,7 +192,7 @@ void cmdlineShutdown(void) {
     _cmdlineCtx.init = 0;
 }
 
-int cmdlineInit(appDefaults_t *defaults) {
+int flubCmdlineInit(appDefaults_t *defaults) {
 	const char *opt;
 
     if(_cmdlineCtx.init) {
@@ -247,7 +269,7 @@ int cmdlineInit(appDefaults_t *defaults) {
 	return 1;
 }
 
-int cmdlineStart(void) {
+int flubCmdlineStart(void) {
     eCmdLineStatus_t status;
 
 	status = cmdlineProcess(appDefaults.cmdlineHandler, _cmdlineCtx.app->cmdlineContext);
@@ -257,22 +279,6 @@ int cmdlineStart(void) {
 	}
     debug(DBG_CORE, DBG_LOG_DTL_APP, "Command line parser completed.");
     return 1;
-}
-
-static char *_initDeps[] = {"logger", NULL};
-static char *_startDeps[] = {"config", NULL};
-flubModuleCfg_t flubModuleCmdline = {
-	.name = "cmdline",
-	.init = cmdlineInit,
-	.start = cmdlineStart,
-	.shutdown = cmdlineShutdown,
-	.initDeps = _initDeps,
-	.startDeps = _startDeps,
-};
-
-
-int cmdlineValid(void) {
-    return _cmdlineCtx.init;
 }
 
 static int _checkOptionName(const char *name) {

@@ -21,6 +21,24 @@
 #define TEX_FLAG_NAMED      0x02
 
 
+/////////////////////////////////////////////////////////////////////////////
+// texture module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubTextureInit(appDefaults_t *defaults);
+void flubTextureShutdown(void);
+
+static char *_initDeps[] = {"video", NULL};
+flubModuleCfg_t flubModuleTexture = {
+    .name = "texture",
+    .init = flubTextureInit,
+    .shutdown = flubTextureShutdown,
+    .initDeps = _initDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 // TODO Incorporate loading animated GIF's
 // TODO Subdivide from an animated GIF
 // TODO provide animated texture API support
@@ -138,21 +156,10 @@ static void _texmgrVideoNotifieeCB(int width, int height, int fullscreen) {
     mutexRelease(g_texmgrCtx.mutex);
 }
 
-int texmgrInit(appDefaults_t *defaults) {
+int flubTextureInit(appDefaults_t *defaults) {
     if(g_texmgrCtx.init) {
         warning("Ignoring attempt to re-initialize the texture manager.");
         return 1;
-    }
-
-    if(!logValid()) {
-        // The logger has not been initialized!
-        fatal("Cannot initialize texture module: logger has not been initialized");
-        return 0;
-    }
-
-    if(!videoValid()) {
-        fatal("Cannot initialize texture module: video has not been initialized");
-        return 0;
     }
 
     logDebugRegister("texture", DBG_TEXTURE, "trace", TEX_TRACE);
@@ -172,11 +179,7 @@ int texmgrInit(appDefaults_t *defaults) {
     return 1;
 }
 
-int texmgrValid(void) {
-    return g_texmgrCtx.init;
-}
-
-void texmgrShutdown(void) {
+void flubTextureShutdown(void) {
     if(!g_texmgrCtx.init) {
         return;
     }
@@ -185,14 +188,6 @@ void texmgrShutdown(void) {
 
     g_texmgrCtx.init = 0;
 }
-
-static char *_initDeps[] = {"video", NULL};
-flubModuleCfg_t flubModuleTexture = {
-    .name = "texture",
-    .init = texmgrInit,
-    .shutdown = texmgrShutdown,
-    .initDeps = _initDeps,
-};
 
 static void _texmgrAnonStore(texEntry_t *entry) {
     entry->next = g_texmgrCtx.anonEntries;

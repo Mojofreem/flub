@@ -20,10 +20,6 @@ typedef struct cmdlineOption_s {
 #define END_OF_CMDLINE_OPT_LIST     { NULL, 0, 0, NULL, NULL }
 
 
-int cmdlineInit(appDefaults_t *defaults);
-int cmdlineValid(void);
-void cmdlineShutdown(void);
-
 void cmdlineOptAdd(const char *name, int val, int has_arg, const char *meta,
                    const char *help, cmdlineOptHandler_t handler);
 void cmdlineOptEntryAdd(cmdlineOption_t *opts);

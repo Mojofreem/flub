@@ -5,6 +5,26 @@
 #include <string.h>
 #include <ctype.h>
 
+
+/////////////////////////////////////////////////////////////////////////////
+// sdl module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubSDLInit(appDefaults_t *defaults);
+void flubSDLShutdown(void);
+
+static char *_initDeps[] = {"logger", NULL};
+
+flubModuleCfg_t flubModuleSDL = {
+    .name = "sdl",
+    .init = flubSDLInit,
+    .shutdown = flubSDLShutdown,
+    .initDeps = _initDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 static struct {
     int init;
     char shiftMap[127];
@@ -68,10 +88,6 @@ int flubSDLInit(appDefaults_t *defaults) {
     return 1;
 }
 
-int flubSDLValid(void) {
-    return _sdlCtx.init;
-}
-
 void flubSDLShutdown(void) {
     if(!_sdlCtx.init) {
         return;
@@ -83,17 +99,6 @@ void flubSDLShutdown(void) {
 
     _sdlCtx.init = 0;
 }
-
-
-static char *_initDeps[] = {"logger", NULL};
-
-flubModuleCfg_t flubModuleSDL = {
-    .name = "sdl",
-    .init = flubSDLInit,
-    .shutdown = flubSDLShutdown,
-    .initDeps = _initDeps,
-};
-
 
 int flubSDLTextInputFilter(SDL_Event *event, char *c) {
     int k;

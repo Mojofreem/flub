@@ -13,6 +13,26 @@
 #include <flub/memory.h>
 #include <flub/module.h>
 
+/////////////////////////////////////////////////////////////////////////////
+// config module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubCfgInit(appDefaults_t *defaults);
+int flubCfgStart(void);
+void flubCfgShutdown(void);
+
+static char *_initDeps[] = {"logger", "cmdline", NULL};
+flubModuleCfg_t flubModuleConfig = {
+    .name = "config",
+    .init = flubCfgInit,
+    .start = flubCfgStart,
+    .shutdown = flubCfgShutdown,
+    .initDeps = _initDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 // TODO Config should be able to export subtrees, and filter substrees
 //      This will help for logically splitting out certain functionality,
 //      like key bindings, or game specific settings.
@@ -92,11 +112,6 @@ int flubCfgInit(appDefaults_t *defaults) {
         return 1;
     }
 
-    if(!cmdlineValid()) {
-        fatal("Cannot initialize the config module: cmdline was not initialized");
-        return 0;
-    }
-
     logDebugRegisterList("config", DBG_CMDLINE, _configDbg);
 
     cmdlineOptAdd("config-list", 0, 0, NULL, "List all configuration variables",
@@ -137,16 +152,6 @@ void flubCfgShutdown(void) {
     _flubCfgCtx.init = 0;
 
 }
-
-static char *_initDeps[] = {"logger", "cmdline", NULL};
-flubModuleCfg_t flubModuleConfig = {
-    .name = "config",
-    .init = flubCfgInit,
-    .start = flubCfgStart,
-    .shutdown = flubCfgShutdown,
-    .initDeps = _initDeps,
-};
-
 
 void flubCfgServerMode(int mode) {
 	_flubCfgCtx.server_mode = mode;

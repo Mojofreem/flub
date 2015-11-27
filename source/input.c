@@ -20,6 +20,24 @@
 #include <flub/module.h>
 
 
+/////////////////////////////////////////////////////////////////////////////
+// input module registration
+/////////////////////////////////////////////////////////////////////////////
+
+int flubInputInit(appDefaults_t *defaults);
+int flubInputUpdate(Uint32 ticks, Uint32 elapsed);
+
+static char *_initDeps[] = {"sdl", NULL};
+flubModuleCfg_t flubModuleInput = {
+	.name = "input",
+	.init = flubInputInit,
+	.update = flubInputUpdate,
+	.initDeps = _initDeps,
+};
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Events action bindings are stored in a hash table. The table has 1024
@@ -164,7 +182,7 @@ static eCmdLineStatus_t _inputCmdlineActions(const char *name, const char *arg, 
 }
 
 
-int inputInit(appDefaults_t *defaults) {
+int flubInputInit(appDefaults_t *defaults) {
 	logDebugRegisterList("console", DBG_CONSOLE, _consoleDbg);
 
 	_inputEventRegistryBuild();
@@ -185,17 +203,6 @@ int inputInit(appDefaults_t *defaults) {
 
 	return 1;
 }
-
-void _inputShutdown(void) {
-}
-
-static char *_initDeps[] = {"sdl", NULL};
-flubModuleCfg_t flubModuleInput = {
-	.name = "input",
-	.init = inputInit,
-	.update = inputUpdate,
-	.initDeps = _initDeps,
-};
 
 void inputMousePosSet(int x, int y){
 	_inputCtx.mouseX = x;
@@ -660,7 +667,7 @@ int inputWaitEventTimeout(SDL_Event *event, int timeout) {
 	return 0;
 }
 
-int inputUpdate(Uint32 ticks, Uint32 elapsed) {
+int flubInputUpdate(Uint32 ticks, Uint32 elapsed) {
 	if(_inputCtx.showCursor) {
 		// TODO Update and display the mouse, if mouse cursor is enabled		
 	}

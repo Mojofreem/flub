@@ -6,10 +6,6 @@
 #include <flub/module.h>
 
 
-int memInit(appDefaults_t *defaults);
-void memShutdown(void);
-
-
 void util_outofmemory( void ) __attribute__((noreturn));
 
 void *util_alloc( size_t size, void *src );
