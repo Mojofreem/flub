@@ -110,15 +110,26 @@ void flubColorCopy(flubColor4f_t *colorA, flubColor4f_t *colorB) {
     colorB->alpha = colorA->alpha;
 }
 
-void flubColorQCCodeGet(char c, flubColor4f_t *color) {
+void flubColorQCCodeGet(char c, flubColor4f_t *color, flubColor4f_t *defColor) {
     if(!g_utilCtx.inited) {
         _utilQCColorCodeTableInit();
     }
 
-    color->red = g_utilCtx.colorTable[c].red;
-    color->green = g_utilCtx.colorTable[c].green;
-    color->blue = g_utilCtx.colorTable[c].blue;
+    if((c == '=') && (defColor != NULL)) {
+        flubColorCopy(defColor, color);
+        color->alpha = 1.0;
+        return;
+    }
+    flubColorCopy(&(g_utilCtx.colorTable[c]), color);
     color->alpha = 1.0;
+}
+
+void flubColorGLColorSet(flubColor4f_t *color) {
+    glColor3f(color->red, color->green, color->blue);
+}
+
+void flubColorGLColorAlphaSet(flubColor4f_t *color) {
+    glColor4f(color->red, color->green, color->blue, color->alpha);
 }
 
 // ^\s*(0x|#)?(?P<simple>[0-9A-Fa-f]{3})(?P<extended>[0-9A-Fa-f]{3})?\s*$

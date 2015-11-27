@@ -19,12 +19,13 @@
 #include <flub/app.h>
 #include <flub/util/color.h>
 #include <flub/module.h>
+#include <stddef.h>
 
 
 //#define FLUB_CONSOLE_SHOW_DELAY		250
 #define FLUB_CONSOLE_SHOW_DELAY		150
 #define FLUB_CONSOLE_HEIGHT_RATIO	0.75
-#define FLUB_CONSOLE_BG_COLOR       "#333333"
+#define FLUB_CONSOLE_BG_COLOR       "#333333D9"
 #define FLUB_CONSOLE_BG_ALPHA       0.85
 
 #define FLUB_CONSOLE_BUF_SIZE		8192
@@ -67,7 +68,6 @@ typedef struct consoleCmdEntry_s {
     consoleCmdHandler_t hint;
 } consoleCmdEntry_t;
 
-
 struct {
 	int show;
 	int visible;
@@ -101,34 +101,19 @@ struct {
     sound_t *openSound;
     sound_t *closeSound;
 
+    texture_t *bgTexture;
+    flubColor4f_t colorBackground;
     flubColor4f_t colorCursor;
     flubColor4f_t colorCmdText;
     flubColor4f_t colorOutText;
 } _consoleCtx = {
-		.show = 0,
-		.visible = 0,
-		.height = 0,
-		.width = 0,
-		.pos = 0,
-		.lines = 0,
-		.charsPerLine = 0,
-		.cmdCharsPerLine = 0,
-        .scrollback = 0,
-		//.slideAnim
-		.lastTick = 0,
-        .capture = 0,
         .handlers = CRITBIT_TREE_INIT,
-		//.cmdbuf
-        //.cmdparse
-		.cursor = 0,
-		.offset = 0,
-		.cmdlen = 0,
-        //.shiftMap
-		.font = NULL,
-		.circbuf = NULL,
-		.mesh = NULL,
-        .openSound = NULL,
-        .closeSound = NULL,
+        .colorBackground = {
+            .red = 0.2,
+            .green = 0.2,
+            .blue = 0.2,
+            .alpha = 0.85,
+        },
         .colorCursor = {
             .green = 1.0,
         },
@@ -541,7 +526,7 @@ int flubConsoleUpdate(Uint32 ticks, Uint32 elapsed2) {
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		// Draw the console background
-		glColor4f(0.2, 0.2, 0.2, 0.85);
+        flubColorGLColorAlphaSet(&(_consoleCtx.colorBackground));
 		glBegin(GL_QUADS);
 			glVertex2i(0, 0);
 			glVertex2i(_consoleCtx.width, 0);
@@ -622,14 +607,15 @@ static void _consoleMeshRebuild(void) {
     }
 
 	gfxMeshClear(_consoleCtx.mesh);
-	fontSetColor(&(_consoleCtx.colorOutText));
 	pos = _consoleCtx.height - (fontGetHeight(_consoleCtx.font) * 2);
 	for(line = count - 1; lines; line--) {
 		if(!circBufGetEntry(_consoleCtx.circbuf, line - scroll, ((void **)&buf), NULL)) {
 			continue;
 		}
 		fontPos(0, pos);
-		fontBlitStrMesh(_consoleCtx.mesh, _consoleCtx.font, buf);
+        fontSetColor((flubColor4f_t *)buf);
+        buf += sizeof(flubColor4f_t);
+		fontBlitQCStrMesh(_consoleCtx.mesh, _consoleCtx.font, buf, &(_consoleCtx.colorOutText));
 		lines--;
 		pos -= fontGetHeight(_consoleCtx.font);
 	}
@@ -638,11 +624,15 @@ static void _consoleMeshRebuild(void) {
 void consolePrint(const char *str) {
 	char *entry;
 	int pos;
+    flubColor4f_t color, lineColor;
 
+    flubColorCopy(&(_consoleCtx.colorOutText), &color);
 	while(1) {
-		pos = fontGetStrLenWrap(_consoleCtx.font, str, *videoWidth);
-        //pos = strlen(str);
-		entry = circBufAllocNextEntryPtr(_consoleCtx.circbuf, pos + 1);
+        flubColorCopy(&color, &lineColor);
+		fontGetStrLenQCWrap(_consoleCtx.font, str, *videoWidth, &pos, &color, &(_consoleCtx.colorOutText));
+		entry = circBufAllocNextEntryPtr(_consoleCtx.circbuf, pos + sizeof(lineColor) + 1);
+        memcpy(entry, &lineColor, sizeof(lineColor));
+        entry += sizeof(lineColor);
 		strncpy(entry, str, pos);
 		entry[pos] = '\0';
 		if(str[pos] == '\0') {

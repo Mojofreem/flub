@@ -417,7 +417,7 @@ int main(int argc, char *argv[]) {
     fontPos(150, 300);
     fontBlitStrfMesh(fontMesh, fnt, "font%sStrf();", "Blit");
     fontPos(150, 320);
-    fontBlitQCStrMesh(fontMesh, fnt, "font^2Blit^1QC^wStr();");
+    fontBlitQCStrMesh(fontMesh, fnt, "font^2Blit^1QC^wStr();", NULL);
     fontPos(150, 340);
     fontBlitIntMesh(fontMesh, fnt, 12345);
     fontPos(150, 360);

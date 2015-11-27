@@ -15,7 +15,10 @@ typedef struct flubColor4f_s {
 
 void flubColorCopy(flubColor4f_t *colorA, flubColor4f_t *colorB);
 
-void flubColorQCCodeGet(char c, flubColor4f_t *color);
+void flubColorQCCodeGet(char c, flubColor4f_t *color, flubColor4f_t *defColor);
+
+void flubColorGLColorSet(flubColor4f_t *color);
+void flubColorGLColorAlphaSet(flubColor4f_t *color);
 
 // (0x|#)?[0-9A-Fa-f]{3}[0-9A-Fa-f]{3} |
 // ((1?[1-9]\d?)|0|100|(2([0-4]\d|5[0-5])))(,((1?[1-9]\d?)|0|100|(2([0-4]\d|5[0-5]))){2,2}) |

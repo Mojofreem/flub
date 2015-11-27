@@ -33,8 +33,8 @@ int fontGetStrLenWordWrap(font_t *font, char *s, int maxwidth, char **next,
 int fontGetStrLenWrapGroup(font_t *font, char *s, int maxwidth, int *lineStarts, int *lineLens, int groupLen);
 int fontGetStrLenWordWrapGroup(font_t *font, char *s, int maxwidth,
        						   int *lineStarts, int *lineLens, int groupLen);
-int fontGetStrLenQCWrap(font_t *font, char *s, int maxwidth, int *strlen,
-                        float *red, float *green, float *blue);
+int fontGetStrLenQCWrap(font_t *font, const char *s, int maxwidth, int *strlen,
+                        flubColor4f_t *color, flubColor4f_t *defColor);
 int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
                             char **next, int *width,
                             float *red, float *green, float *blue);
@@ -57,7 +57,7 @@ void fontBlitCMesh(gfxMeshObj_t *mesh, font_t *font, char c);
 void fontBlitStrMesh(gfxMeshObj_t *mesh, font_t *font, const char *s);
 void fontBlitStrNMesh(gfxMeshObj_t *mesh, font_t *font, char *s, int len);
 void fontBlitStrfMesh(gfxMeshObj_t *mesh, font_t *font, char *fmt, ...);
-void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s);
+void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s, flubColor4f_t *defColor);
 void fontBlitIntMesh(gfxMeshObj_t *mesh, font_t *font, int num);
 void fontBlitFloatMesh(gfxMeshObj_t *mesh, font_t *font, float num, int decimals);
 

@@ -868,13 +868,12 @@ int fontGetStrLenWordWrapGroup(font_t *font, char *s, int maxwidth,
     return count;
 }
 
-int fontGetStrLenQCWrap(font_t *font, char *s, int maxwidth, int *strlen,
-                        float *red, float *green, float *blue) {
+int fontGetStrLenQCWrap(font_t *font, const char *s, int maxwidth, int *strlen,
+                        flubColor4f_t *color, flubColor4f_t *defColor) {
     flubStbFont_t *work = &(((fontIndex_t *)font)->stbfont);
     int w;
     int a;
 	int width = 0, size, pos = 0, len;
-    flubColor4f_t color;
 
     if(font == NULL) { 
         return 0;
@@ -887,10 +886,7 @@ int fontGetStrLenQCWrap(font_t *font, char *s, int maxwidth, int *strlen,
 				*strlen = len;
 				return pos;
 			} else if(s[len] !='^') {
-				flubColorQCCodeGet(s[len], &color);
-                *red = color.red;
-                *green = color.green;
-                *blue = color.blue;
+				flubColorQCCodeGet(s[len], color, defColor);
 				continue;
 			}
 		}
@@ -928,7 +924,7 @@ int fontGetStrLenQCWordWrap(font_t *font, char *s, int maxwidth, int *strlen,
                 *strlen = pos;
                 return pos;
             } else if(*ptr !='^') {
-                flubColorQCCodeGet(*ptr, &color);
+                flubColorQCCodeGet(*ptr, &color, NULL);
                 *red = color.red;
                 *green = color.green;
                 *blue = color.blue;
@@ -1132,7 +1128,7 @@ void fontBlitQCStr(font_t *font, char *s) {
 			} else if(*s == '\0') {
 				break;
 			} else {
-                flubColorQCCodeGet(*s, &color);
+                flubColorQCCodeGet(*s, &color, NULL);
                 fontSetColor(&color);
 			}
 			s++;
@@ -1293,10 +1289,9 @@ void fontBlitStrfMesh(gfxMeshObj_t *mesh, font_t *font, char *fmt, ...) {
     fontBlitStrMesh(mesh, font, buf);
 }
 
-void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s) {
+void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s, flubColor4f_t *defColor) {
     fontIndex_t *work = (fontIndex_t *)font;
     stb_fontchar *glyph;
-    float red, green, blue;
     int run, k;
     char *ptr;
     flubColor4f_t color;
@@ -1339,7 +1334,7 @@ void fontBlitQCStrMesh(gfxMeshObj_t *mesh, font_t *font, char *s) {
             } else if(*s == '\0') {
                 break;
             } else {
-                flubColorQCCodeGet(*s, &color);
+                flubColorQCCodeGet(*s, &color, defColor);
                 fontSetColor(&color);
             }
             s++;
