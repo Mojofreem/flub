@@ -758,7 +758,7 @@ WARN_LOGFILE           =
 # spaces.
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = C:/Users/liam/projects/flub/source C:/Users/liam/projects/flub/flub C:/Users/liam/projects/flub/doxygen/flub.md C:/Users/liam/projects/flub/flub/sdl.h
+INPUT                  = C:/Users/liam/projects/flub-hub/source C:/Users/liam/projects/flub-hub/flub C:/Users/liam/projects/flub-hub/doxygen/flub.md C:/Users/liam/projects/flub-hub/flub/sdl.h
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -793,7 +793,7 @@ RECURSIVE              = YES
 # Note that relative paths are relative to the directory from which doxygen is
 # run.
 
-EXCLUDE                =  C:/Users/liam/projects/flub/assets C:/Users/liam/projects/flub/docs C:/Users/liam/projects/flub/doxygen C:/Users/liam/projects/flub/import C:/Users/liam/projects/flub/tools C:/Users/liam/projects/flub/3rdparty
+EXCLUDE                =  C:/Users/liam/projects/flub-hub/assets C:/Users/liam/projects/flub-hub/docs C:/Users/liam/projects/flub-hub/doxygen C:/Users/liam/projects/flub-hub/import C:/Users/liam/projects/flub-hub/tools C:/Users/liam/projects/flub-hub/3rdparty
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded
