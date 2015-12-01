@@ -34,7 +34,7 @@ void consolePrintfQC(const char *fmt, ...);
 int consoleWindowCharWidth(void);
 
 void consoleTabularDivider(int border, int columns, int *colWidths);
-void consoleTabularPrint(int border, int columns, int *colWidths, char **colStrs);
+void consoleTabularPrint(int border, int columns, int *colWidths, const char * const * const colStrs);
 
 
 #endif // _FLUB_CONSOLE_HEADER_

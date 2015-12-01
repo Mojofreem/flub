@@ -399,6 +399,29 @@ int flubCfgSave(const char *filename, int all) {
     return 1;
 }
 
+void flubCfgVarUpdateInList(flubCfgOptList_t *list, const char *name, const char *value) {
+    int k;
+
+    for(k = 0; list[k].name != NULL; k++) {
+        if(!strcmp(name, list[k].name)) {
+            if(list[k].update != NULL) {
+                list[k].update(name, value);
+                return;
+            }
+        }
+    }
+}
+
+void flubCfgVarUpdateAllInList(flubCfgOptList_t *list) {
+    int k;
+
+    for(k = 0; list[k].name != NULL; k++) {
+        if(list[k].update != NULL) {
+            list[k].update(list[k].name, flubCfgOptStringGet(list[k].name));
+        }
+    }    
+}
+
 int flubCfgOptNotifieeAdd(const char *name, cfgNotifyCB_t callback) {
     flubCfgOpt_t *option;
     flubCfgOptNotifiee_t *notifiee;

@@ -191,7 +191,7 @@ static int _consoleVarValidateBgAlpha(const char *name, const char *value) {
     return 1;
 }
 
-static int _consoleVarValidatorSpeed(const char *name, const char *value) {
+static int _consoleVarValidateSpeed(const char *name, const char *value) {
     int speed;
 
     speed = utilIntFromString(value, -1);
@@ -208,7 +208,7 @@ static int _consoleVarValidatorSpeed(const char *name, const char *value) {
     return 1;
 }
 
-static int _consoleVarValidatorHeight(const char *name, const char *value) {
+static int _consoleVarValidateHeight(const char *name, const char *value) {
     float ratio;
 
     ratio = utilFloatFromString(value, -1.0);
@@ -222,10 +222,10 @@ static int _consoleVarValidatorHeight(const char *name, const char *value) {
 }
 
 flubCfgOptList_t _consoleVars[] = {
-    {"console_bg", FLUB_CONSOLE_VAR_BG_COLOR, FLUB_CFG_FLAG_CLIENT, _consoleVarValidateBgColor},
-    {"console_alpha", STRINGIFY(FLUB_CONSOLE_VAR_BG_ALPHA), FLUB_CFG_FLAG_CLIENT, _consoleVarValidateBgAlpha},
-    {"console_speed", STRINGIFY(FLUB_CONSOLE_VAR_SPEED), FLUB_CFG_FLAG_CLIENT, _consoleVarValidatorSpeed},
-    {"console_height", STRINGIFY(FLUB_CONSOLE_VAR_HEIGHT), FLUB_CFG_FLAG_CLIENT, _consoleVarValidatorHeight},
+    {"console_bg", FLUB_CONSOLE_VAR_BG_COLOR, FLUB_CFG_FLAG_CLIENT, _consoleVarValidateBgColor, _consoleVarValidateBgColor},
+    {"console_alpha", STRINGIFY(FLUB_CONSOLE_VAR_BG_ALPHA), FLUB_CFG_FLAG_CLIENT, _consoleVarValidateBgAlpha, _consoleVarValidateBgAlpha},
+    {"console_speed", STRINGIFY(FLUB_CONSOLE_VAR_SPEED), FLUB_CFG_FLAG_CLIENT, _consoleVarValidateSpeed, _consoleVarValidateSpeed},
+    {"console_height", STRINGIFY(FLUB_CONSOLE_VAR_HEIGHT), FLUB_CFG_FLAG_CLIENT, _consoleVarValidateHeight, _consoleVarValidateHeight},
     FLUB_CFG_OPT_LIST_END
 };
 
@@ -296,7 +296,7 @@ void consoleTabularDivider(int border, int columns, int *colWidths) {
     consolePrint(_consoleCtx.miscbuf);
 }
 
-void consoleTabularPrint(int border, int columns, int *colWidths, char **colStrs) {
+void consoleTabularPrint(int border, int columns, int *colWidths, const char * const * const colStrs) {
     int k, j;
     char *ptr;
 
@@ -349,7 +349,6 @@ conCmdLineCtx_t *consoleCmdLineInit(int lineLen, int historyLen) {
     ptr += (sizeof(conCmdLineEntry_t *) * historyLen);
     for(k = 0; k < historyLen; k++) {
         ctx->history[k] = ((void *)(ptr));
-        infof("Base: %p  Entry %d: %p", ctx->buffer, k, ptr);
         ptr += (lineLen + 1 + sizeof(conCmdLineEntry_t));
         ctx->history[k]->buflen = lineLen - 1;
     }
@@ -641,7 +640,7 @@ static void _consoleOpenHandler(SDL_Event *event, int pressed, int motion, int x
 }
 
 void _consoleVarNotifyCB(const char *name, const char *value) {
-
+    flubCfgVarUpdateInList(_consoleVars, name, value);
 }
 
 int flubConsoleInit(appDefaults_t *defaults) {
@@ -661,7 +660,6 @@ int flubConsoleInit(appDefaults_t *defaults) {
 }
 
 static void _consoleMeshRebuild(void);
-static void _consoleCmdMeshRebuild(void);
 static void _consoleHelp(const char *name, int paramc, char **paramv);
 static void _consoleList(const char *name, int paramc, char **paramv);
 static void _consoleSet(const char *name, int paramc, char **paramv);
@@ -669,6 +667,17 @@ static void _consoleBind(const char *name, int paramc, char **paramv);
 static void _consoleClear(const char *name, int paramc, char **paramv);
 static void _consoleClose(const char *name, int paramc, char **paramv);
 static void _consoleVersion(const char *name, int paramc, char **paramv);
+
+consoleCmd_t _consoleCmdList[] = {
+    {"help", "help [prefix]", _consoleHelp},
+    {"list", "list [prefix]", _consoleList},
+    {"bind", "bind <key> <action>", _consoleBind},
+    {"clear", "clear", _consoleClear},
+    {"close", "close", _consoleClose},
+    {"version", "version", _consoleVersion},
+    {"set", "set <var> <value>", _consoleSet},
+    CONSOLE_COMMAND_LIST_END(),
+};
 
 void consoleCmdLineRender(conCmdLineCtx_t *ctx);
 
@@ -680,13 +689,7 @@ int flubConsoleStart(void) {
         return 0;
     }
 
-    if((!consoleCmdRegister("help", "help [prefix]", _consoleHelp)) ||
-       (!consoleCmdRegister("list", "list [prefix]", _consoleList)) ||
-       (!consoleCmdRegister("bind", "bind <key> <action>", _consoleBind)) ||
-       (!consoleCmdRegister("clear", "clear", _consoleClear)) ||
-       (!consoleCmdRegister("close", "close", _consoleClose)) ||
-       (!consoleCmdRegister("version", "version", _consoleVersion)) ||
-       (!consoleCmdRegister("set", "set <var> <value>", _consoleSet))) {
+    if(!consoleCmdListRegister(_consoleCmdList)) {
         return 0;
     }
 
@@ -713,6 +716,8 @@ int flubConsoleStart(void) {
     if(!videoAddNotifiee(_consoleVideoCallback)) {
         return 0;
     }
+
+    flubCfgVarUpdateAllInList(_consoleVars);
 
     _consoleVideoCallback(*videoWidth, *videoHeight, videoIsFullscreen());
 
@@ -848,7 +853,6 @@ static void _consoleInputHandler(SDL_Event *event, int pressed, int motion, int 
     }
 
     consoleCmdLineRender(_consoleCtx.cmdline);
-    //_consoleCmdMeshRebuild();
     if(updatelog) {
         _consoleMeshRebuild();
     }
@@ -1053,22 +1057,102 @@ void consolePrintf(const char *fmt, ...) {
     consolePrint(buf);
 }
 
+#define CONSOLE_MAX_PRINT_COLS      10
+#define CONSOLE_COLUMNS_SPACING     3
+
+typedef struct conOutColumnator_s {
+    int maxlen;
+    int border;
+    int pos;
+    int columns;
+    int colWidths[CONSOLE_MAX_PRINT_COLS];
+    const char *colStrs[CONSOLE_MAX_PRINT_COLS];
+} conOutColumnator_t;
+
+void consoleColumnatorInit(conOutColumnator_t *col, int border);
+void consoleColumnatorCheckSize(conOutColumnator_t *col, int width);
+void consoleColumnatorBegin(conOutColumnator_t *col);
+void consoleColumnatorAdd(conOutColumnator_t *col, const char *str);
+void consoleColumnatorEnd(conOutColumnator_t *col);
+
+void consoleColumnatorInit(conOutColumnator_t *col, int border) {
+    col->maxlen = 0;
+    col->border = border;
+    col->pos = 0;
+    col->columns = 0;
+}
+
+void consoleColumnatorCheckSize(conOutColumnator_t *col, int width) {
+    if(width > col->maxlen) {
+        col->maxlen = width;
+    }
+}
+
+void consoleColumnatorBegin(conOutColumnator_t *col) {
+    int k;
+    int spacing;
+
+    if(!(col->border)) {
+        spacing = CONSOLE_COLUMNS_SPACING;
+    } else {
+        spacing = 0;
+    }
+
+    for(col->columns = CONSOLE_MAX_PRINT_COLS; col->columns > 0; col->columns--) {
+        if(((col->columns * col->maxlen) + ((col->columns - 1) * spacing)) < _consoleCtx.charsPerLine) {
+            break;
+        }
+    }
+    for(k = 0; k < col->columns; k++) {
+        col->colWidths[k] = col->maxlen;
+    }
+    col->pos = 0;
+}
+
+void consoleColumnatorAdd(conOutColumnator_t *col, const char *str) {
+    col->colStrs[col->pos] = str;
+    col->pos++;
+    if(col->pos >= col->columns) {
+        consoleTabularPrint(col->border, col->columns, col->colWidths, col->colStrs);
+        col->pos = 0;
+    }
+}
+
+void consoleColumnatorEnd(conOutColumnator_t *col) {
+    if(col->pos > 0) {
+        consoleTabularPrint(col->border, col->pos, col->colWidths, col->colStrs);
+        col->pos = 0;        
+    }
+}
+
 static int _consoleCmdEnumCB(const char *name, void *data, void *arg) {
-    consolePrint(name);
+    conOutColumnator_t *col = ((conOutColumnator_t *)arg);
+    consoleColumnatorAdd(col, name);
+    return 1;
+}
+
+static int _consoleCmdLenEnumCB(const char *name, void *data, void *arg) {
+    conOutColumnator_t *col = ((conOutColumnator_t *)arg);
+    consoleColumnatorCheckSize(col, strlen(name));
     return 1;
 }
 
 static void _consoleHelp(const char *name, int paramc, char **paramv) {
-    void *data;
     char *prefix = "";
+    conOutColumnator_t col;
+
+    consoleColumnatorInit(&col, 0);
 
     if(paramc > 0) {
         prefix = paramv[0];
     }
 
-    consolePrint("Console commands:");
+    consolePrint("^7Console commands:^=");
 
-    critbitAllPrefixed(&(_consoleCtx.handlers), prefix, _consoleCmdEnumCB, NULL);
+    critbitAllPrefixed(&(_consoleCtx.handlers), prefix, _consoleCmdLenEnumCB, (void *)(&col));
+    consoleColumnatorBegin(&col);
+    critbitAllPrefixed(&(_consoleCtx.handlers), prefix, _consoleCmdEnumCB, (void *)(&col));
+    consoleColumnatorEnd(&col);
 }
 
 static int _consoleCfgEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
@@ -1114,8 +1198,8 @@ static void _consoleClose(const char *name, int paramc, char **paramv) {
 }
 
 static void _consoleVersion(const char *name, int paramc, char **paramv) {
-    consolePrintf("%s version %d.%d", appDefaults.title, appDefaults.major, appDefaults.minor);
-    consolePrintf("Flub version %s", FLUB_VERSION_STRING);
+    consolePrintf("^7%s^= version ^5%d^=.^5%d^=", appDefaults.title, appDefaults.major, appDefaults.minor);
+    consolePrintf("^7Flub^= version ^5%s^=", FLUB_VERSION_STRING);
 }
 
 void consoleBgImageSet(texture_t *tex) {

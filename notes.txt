@@ -1,6 +1,76 @@
 Flub
+
+logger
+app
+audio
+cmdline
+config
+console
+core
+font
+gfx
+gui
+input
+layout
+license
+memory
+module
+physfsrwops
+physfsutil
+sdl
+simpleedit
+stbfont
+texture
+theme
+thread
+video
+widget
+
+App
+    major
+    minor
+    argc
+    argv
+    cmd line context
+    title
+    config file
+    binding file
+    archive file
+    video mode
+    full screen
+    all video mode change
+    allow fullscreen change
+    default command line handler
+    command line help str
+    resource list
+    frame stack size
+
+
+init
+    instantiate all modules
+
+app defines command line options and config vars
+
+start
+    start all modules
+    process command line options
+
+app starts
+
+shutdown
+
+
+name, desc, default, validator, update, type, ptr
+
+int
+float
+str (copy)
+str (alloc)
 color
-    use consistent color struct throughout flub
+color w/ alpha
+
+
+
 console API improvements
     console output API
     console input API

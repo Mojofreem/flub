@@ -553,9 +553,9 @@ int texmgrRegStr(const char *str) {
     switch(count) {
         case 5:
             if(flubColorParse(fields[4], &color)) {
-                red = color.red;
-                green = color.green;
-                blue = color.blue;
+                red = COLOR_FTOI(color.red);
+                green = COLOR_FTOI(color.green);
+                blue = COLOR_FTOI(color.blue);
                 colorkey = 1;
             } else {
                 errorf("Failed to parse the colorkey for texture \"%s\".", fields[0]);

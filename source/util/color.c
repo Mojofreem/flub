@@ -253,10 +253,10 @@ int flubColorParse(const char *str, flubColor4f_t *color) {
     return 0;
 
 done:
-    color->red = red;
-    color->green = green;
-    color->blue = blue;
-    color->alpha = alpha;
+    color->red = COLOR_ITOF(red);
+    color->green = COLOR_ITOF(green);
+    color->blue = COLOR_ITOF(blue);
+    color->alpha = COLOR_ITOF(alpha);
 
     return 1;
 }
