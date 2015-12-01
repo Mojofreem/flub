@@ -18,14 +18,20 @@
 #include <flub/flubconfig.h>
 #include <flub/app.h>
 #include <flub/util/color.h>
+#include <flub/util/parse.h>
 #include <flub/module.h>
 #include <stddef.h>
 
 
-//#define FLUB_CONSOLE_SHOW_DELAY		250
+#define FLUB_CONSOLE_VAR_BG_COLOR   "#333333"
+#define FLUB_CONSOLE_VAR_BG_ALPHA   0.85
+#define FLUB_CONSOLE_VAR_SPEED      150
+#define FLUB_CONSOLE_VAR_HEIGHT     0.75
+
+
 #define FLUB_CONSOLE_SHOW_DELAY		150
 #define FLUB_CONSOLE_HEIGHT_RATIO	0.75
-#define FLUB_CONSOLE_BG_COLOR       "#333333D9"
+#define FLUB_CONSOLE_BG_COLOR       "#333333"
 #define FLUB_CONSOLE_BG_ALPHA       0.85
 
 #define CONSOLE_MISC_BUF_SIZE       256
@@ -63,7 +69,6 @@ flubModuleCfg_t flubModuleConsole = {
 };
 
 /////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////
 
 typedef struct conCmdLineEntry_s {
     int len;
@@ -83,7 +88,6 @@ typedef struct conCmdLineCtx_s {
     char buffer[0];
 } conCmdLineCtx_t;
 
-
 typedef struct consoleCmdEntry_s {
     char *help;
     consoleCmdHandler_t handler;
@@ -102,18 +106,16 @@ struct {
 	int charsPerLine;
 	int cmdCharsPerLine;
     int scrollback;
+    float heightRatio;
 
+    int speed;
 	flubAnim1Pti_t slideAnim;
 	Uint32 lastTick;
 
     int capture;
     critbit_t handlers;
 
-	char cmdbuf[FLUB_CONSOLE_CMD_LEN];
     char cmdparse[FLUB_CONSOLE_CMD_LEN];
-	int cursor;
-	int offset;
-	int cmdlen;
     char shiftMap[127];
 
     char miscbuf[CONSOLE_MISC_BUF_SIZE];
@@ -130,6 +132,7 @@ struct {
     sound_t *closeSound;
 
     texture_t *bgTexture;
+    float bgAlpha;
     flubColor4f_t colorBackground;
     flubColor4f_t colorCursor;
     flubColor4f_t colorDimCursor;
@@ -137,6 +140,7 @@ struct {
     flubColor4f_t colorOutText;
 } _consoleCtx = {
         .handlers = CRITBIT_TREE_INIT,
+        .heightRatio = FLUB_CONSOLE_VAR_HEIGHT,
         .colorBackground = {
             .red = 0.2,
             .green = 0.2,
@@ -158,604 +162,76 @@ struct {
         },
 	};
 
+static void _consoleUpdateDisplaySettings(int width, int height);
 
-int _consoleVarValidator(const char *name, const char *value) {
+static int _consoleVarValidateBgColor(const char *name, const char *value) {
+    flubColor4f_t color;
+
+    if(flubColorParse(value, &color)) {
+        color.alpha = _consoleCtx.bgAlpha;
+        flubColorCopy(&color, &(_consoleCtx.colorBackground));
+        _consoleUpdateDisplaySettings(*videoWidth, *videoHeight);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int _consoleVarValidateBgAlpha(const char *name, const char *value) {
+    float alpha;
+
+    alpha = utilFloatFromString(value, -1.0);
+    if((alpha < 0.0) || (alpha > 1.0)) {
+        return 0;
+    }
+    _consoleCtx.bgAlpha = alpha;
+    _consoleCtx.colorBackground.alpha = alpha;
+    _consoleUpdateDisplaySettings(*videoWidth, *videoHeight);
+
     return 1;
 }
 
+static int _consoleVarValidatorSpeed(const char *name, const char *value) {
+    int speed;
+
+    speed = utilIntFromString(value, -1);
+    if((speed < 50) || (speed > 10000)) {
+        return 0;
+    }
+    _consoleCtx.speed = speed;
+    flubAnimInit1Pti(&(_consoleCtx.slideAnim), 0, _consoleCtx.height, speed);
+    if(!_consoleCtx.visible) {
+        flubAnimReverse1Pti(&(_consoleCtx.slideAnim));
+    }
+    _consoleUpdateDisplaySettings(*videoWidth, *videoHeight);
+
+    return 1;
+}
+
+static int _consoleVarValidatorHeight(const char *name, const char *value) {
+    float ratio;
+
+    ratio = utilFloatFromString(value, -1.0);
+    if(!((ratio < 0.10) || (ratio > 1.0))) {
+        _consoleCtx.heightRatio = ratio;
+        _consoleUpdateDisplaySettings(*videoWidth, *videoHeight);
+        return 1;
+    }
+
+    return 0;
+}
+
 flubCfgOptList_t _consoleVars[] = {
-    {"console_bg", "", FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
-    {"console_alpha", "", FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
-    {"console_speed", STRINGIFY(FLUB_CONSOLE_SHOW_DELAY), FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
-    {"console_height", STRINGIFY(FLUB_CONSOLE_HEIGHT_RATIO), FLUB_CFG_FLAG_CLIENT, _consoleVarValidator},
+    {"console_bg", FLUB_CONSOLE_VAR_BG_COLOR, FLUB_CFG_FLAG_CLIENT, _consoleVarValidateBgColor},
+    {"console_alpha", STRINGIFY(FLUB_CONSOLE_VAR_BG_ALPHA), FLUB_CFG_FLAG_CLIENT, _consoleVarValidateBgAlpha},
+    {"console_speed", STRINGIFY(FLUB_CONSOLE_VAR_SPEED), FLUB_CFG_FLAG_CLIENT, _consoleVarValidatorSpeed},
+    {"console_height", STRINGIFY(FLUB_CONSOLE_VAR_HEIGHT), FLUB_CFG_FLAG_CLIENT, _consoleVarValidatorHeight},
     FLUB_CFG_OPT_LIST_END
 };
 
 void _consoleLogCB( const logMessage_t *msg ) {
-	consolePrintf("%s: %s", msg->levelStr, msg->message);
-}
-
-conCmdLineCtx_t *consoleCmdLineInit(int lineLen, int historyLen);
-void consoleCmdLineWidthChange(conCmdLineCtx_t *ctx);
-
-static void _consoleVideoCallback(int width, int height, int fullscreen) {
-	_consoleCtx.height = ((float)height) * FLUB_CONSOLE_HEIGHT_RATIO;
-	_consoleCtx.width = width;
-	_consoleCtx.lines = _consoleCtx.height / fontGetHeight(_consoleCtx.font);
-	flubAnimInit1Pti(&(_consoleCtx.slideAnim), 0, _consoleCtx.height, FLUB_CONSOLE_SHOW_DELAY);
-    if(!_consoleCtx.visible) {
-        flubAnimReverse1Pti(&(_consoleCtx.slideAnim));
-    }
-	_consoleCtx.charsPerLine = _consoleCtx.width / fontGetCharWidth(_consoleCtx.font, 'A');
-	_consoleCtx.cmdCharsPerLine = _consoleCtx.width / fontGetCharWidth(_consoleCtx.cmdFont, 'A');
-    _consoleCtx.scrollback = 0;
-    consoleCmdLineWidthChange(_consoleCtx.cmdline);
-}
-
-static void _consoleShiftMapInit(void) {
-    int k;
-
-    memset(_consoleCtx.shiftMap, 0, sizeof(_consoleCtx.shiftMap));
-    for(k = 'a'; k <='z'; k++) {
-        _consoleCtx.shiftMap[k] = k + ('A' - 'a');
-    }
-    _consoleCtx.shiftMap['1'] = '!';
-    _consoleCtx.shiftMap['2'] = '@';
-    _consoleCtx.shiftMap['3'] = '#';
-    _consoleCtx.shiftMap['4'] = '$';
-    _consoleCtx.shiftMap['5'] = '%';
-    _consoleCtx.shiftMap['6'] = '^';
-    _consoleCtx.shiftMap['7'] = '&';
-    _consoleCtx.shiftMap['8'] = '*';
-    _consoleCtx.shiftMap['9'] = '(';
-    _consoleCtx.shiftMap['0'] = ')';
-    _consoleCtx.shiftMap['-'] = '_';
-    _consoleCtx.shiftMap['='] = '+';
-    _consoleCtx.shiftMap['['] = '{';
-    _consoleCtx.shiftMap[']'] = '}';
-    _consoleCtx.shiftMap['\\'] = '|';
-    _consoleCtx.shiftMap[';'] = ':';
-    _consoleCtx.shiftMap['\''] = '"';
-    _consoleCtx.shiftMap[','] = '<';
-    _consoleCtx.shiftMap['.'] = '>';
-    _consoleCtx.shiftMap['/'] = '?';
-}
-
-void flubConsoleShutdown(void) {
-	logRemoveNotifiee(_consoleLogCB);
-
-	videoRemoveNotifiee(_consoleVideoCallback);
-}
-
-static void _consoleOpenHandler(SDL_Event *event, int pressed, int motion, int x, int y) {
-    if(pressed) {
-        consoleShow(1);
-    }
-}
-
-void _consoleVarNotifyCB(const char *name, const char *value) {
-
-}
-
-int flubConsoleInit(appDefaults_t *defaults) {
-    _consoleCtx.openSound = audioSoundGet("resources/sounds/consoleopen.wav");
-    _consoleCtx.closeSound = audioSoundGet("resources/sounds/consoleclose.wav");
-
-    if(!flubCfgOptListAdd(_consoleVars)) {
-        return 0;
-    }
-    if(!flubCfgPrefixNotifieeAdd("console_", _consoleVarNotifyCB)) {
-        return 0;
-    }
-
-    _consoleCtx.cmdline = consoleCmdLineInit(CONSOLE_CMDLINE_LINE_LEN, CONSOLE_CMDLINE_HISTORY_LEN);
-
-    return 1;
-}
-
-static void _consoleMeshRebuild(void);
-static void _consoleCmdMeshRebuild(void);
-static void _consoleHelp(const char *name, int paramc, char **paramv);
-static void _consoleList(const char *name, int paramc, char **paramv);
-static void _consoleSet(const char *name, int paramc, char **paramv);
-static void _consoleBind(const char *name, int paramc, char **paramv);
-static void _consoleClear(const char *name, int paramc, char **paramv);
-static void _consoleClose(const char *name, int paramc, char **paramv);
-static void _consoleVersion(const char *name, int paramc, char **paramv);
-
-int flubConsoleStart(void) {
-    _consoleCtx.cmdbuf[0] = '\0';
-    _consoleShiftMapInit();
-
-    if((_consoleCtx.circbuf = circBufInit(FLUB_CONSOLE_BUF_SIZE, FLUB_CONSOLE_BUF_ENTRIES, 1)) == NULL) {
-        return 0;
-    }
-
-    if((!consoleCmdRegister("help", "help [prefix]", _consoleHelp)) ||
-       (!consoleCmdRegister("list", "list [prefix]", _consoleList)) ||
-       (!consoleCmdRegister("bind", "bind <key> <action>", _consoleBind)) ||
-       (!consoleCmdRegister("clear", "clear", _consoleClear)) ||
-       (!consoleCmdRegister("close", "close", _consoleClose)) ||
-       (!consoleCmdRegister("version", "version", _consoleVersion)) ||
-       (!consoleCmdRegister("set", "set <var> <value>", _consoleSet))) {
-        return 0;
-    }
-
-    if(!inputActionRegister("General", 0, "showconsole", "Display the console", _consoleOpenHandler)) {
-        return 0;
-    }
-
-    if((_consoleCtx.font = fontGet("courier", 12, 1)) == NULL) {
-        return 0;
-    }
-
-    if((_consoleCtx.cmdFont = fontGet("courier", 12, 1)) == NULL) {
-        return 0;
-    }
-
-    if((_consoleCtx.mesh = gfxMeshCreate(MESH_QUAD_SIZE(FLUB_CONSOLE_MESH_SIZE), GL_TRIANGLES, 1, fontTextureGet(_consoleCtx.font))) == NULL) {
-        return 0;
-    }
-
-    if((_consoleCtx.cmdMesh = gfxMeshCreate(MESH_QUAD_SIZE(FLUB_CONSOLE_CMD_MESH_SIZE), GL_TRIANGLES, 1, fontTextureGet(_consoleCtx.cmdFont))) == NULL) {
-        return 0;
-    }
-
-    if(!videoAddNotifiee(_consoleVideoCallback)) {
-        return 0;
-    }
-
-    _consoleVideoCallback(*videoWidth, *videoHeight, videoIsFullscreen());
-
-    _consoleCmdMeshRebuild();
-
-    logAddNotifiee(_consoleLogCB);
-
-    return 1;
-}
-
-static void _consoleDeleteChar(int pos) {
-    if(pos < 0) {
-        return;
-    }
-    if(pos == (_consoleCtx.cmdlen - 1)) {
-        _consoleCtx.cmdbuf[pos] = '\0';
-    } else {
-        memmove(_consoleCtx.cmdbuf + pos, _consoleCtx.cmdbuf + pos + 1, _consoleCtx.cmdlen - pos);
-    }
-    _consoleCtx.cmdlen--;
-}
-
-static void _consoleScroll(int amount) {
-    _consoleCtx.scrollback += amount;
-    if(_consoleCtx.scrollback > (circBufGetCount(_consoleCtx.circbuf) - _consoleCtx.lines)) {
-        _consoleCtx.scrollback = (circBufGetCount(_consoleCtx.circbuf) - _consoleCtx.lines);
-    }
-    if(_consoleCtx.scrollback < 0) {
-        _consoleCtx.scrollback = 0;
-    }
-}
-
-static char **_consoleCmdParse(int *count, char *input) {
-    static char *tokens[FLUB_CONSOLE_MAX_TOKENS];
-
-    memcpy(_consoleCtx.cmdparse, input, sizeof(_consoleCtx.cmdparse));
-    *count = strTokenize(_consoleCtx.cmdparse, tokens, FLUB_CONSOLE_MAX_TOKENS);
-
-    return tokens;
-}
-
-void consoleCmdLineRender(conCmdLineCtx_t *ctx);
-void consoleCmdLineNext(conCmdLineCtx_t *ctx);
-char *consoleCmdLineGetStr(conCmdLineCtx_t *ctx);
-void consoleCmdLineHistPrev(conCmdLineCtx_t *ctx);
-void consoleCmdLineHistNext(conCmdLineCtx_t *ctx);
-void consoleCmdLineCharPrev(conCmdLineCtx_t *ctx);
-void consoleCmdLineCharNext(conCmdLineCtx_t *ctx);
-void consoleCmdLineWordPrev(conCmdLineCtx_t *ctx);
-void consoleCmdLineWordNext(conCmdLineCtx_t *ctx);
-void consoleCmdLineInsertStr(conCmdLineCtx_t *ctx, const char *str);
-void consoleCmdLineInsertChar(conCmdLineCtx_t *ctx, char c);
-void consoleCmdLineDelete(conCmdLineCtx_t *ctx);
-void consoleCmdLineBackspace(conCmdLineCtx_t *ctx);
-
-static void _consoleInputHandler(SDL_Event *event, int pressed, int motion, int x, int y) {
-    char *ptr;
-    int k;
-    consoleCmdEntry_t *entry;
-    char **tokens;
-    int tcount;
-    char *cmd;
-    int updatelog = 0;
-
-    switch(event->type) {
-        case SDL_KEYDOWN:
-            switch(event->key.keysym.sym) {
-                case SDLK_BACKQUOTE:
-                    consoleShow(0);
-                    break;
-                //case SDLK_BACKQUOTE:
-                    // We catch this to avoid an unwanted stray backtick when opening/closing the console
-                    break;
-                case SDLK_TAB:
-                    // Command hinting
-                    break;
-                case SDLK_BACKSPACE:
-                    consoleCmdLineBackspace(_consoleCtx.cmdline);
-                    break;
-                case SDLK_RETURN:
-                    cmd = consoleCmdLineGetStr(_consoleCtx.cmdline);
-                    tokens = _consoleCmdParse(&tcount, cmd);
-                    if(tcount > 0) {
-                        if(critbitContains(&(_consoleCtx.handlers), tokens[0], ((void **)&entry))) {
-                            entry->handler(tokens[0], tcount - 1, tokens + 1);
-                        } else {
-                            consolePrintf("Unknown command: %s", cmd);
-                        }
-                    }
-                    consoleCmdLineNext(_consoleCtx.cmdline);
-                    break;
-                case SDLK_UP:
-                    consoleCmdLineHistPrev(_consoleCtx.cmdline);
-                    break;
-                case SDLK_DOWN:
-                    consoleCmdLineHistNext(_consoleCtx.cmdline);
-                    break;
-                case SDLK_RIGHT:
-                    if(event->key.keysym.mod & KMOD_CTRL) {
-                        consoleCmdLineWordNext(_consoleCtx.cmdline);
-                    } else {
-                        consoleCmdLineCharNext(_consoleCtx.cmdline);                        
-                    }
-                    break;
-                case SDLK_LEFT:
-                    if(event->key.keysym.mod & KMOD_CTRL) {
-                        consoleCmdLineWordPrev(_consoleCtx.cmdline);
-                    } else {
-                        consoleCmdLineCharPrev(_consoleCtx.cmdline);
-                    }
-                    break;
-                case SDLK_HOME:
-                    // TODO - home
-                    break;
-                case SDLK_END:
-                    // TODO - End
-                    break;
-                case SDLK_DELETE:
-                    consoleCmdLineDelete(_consoleCtx.cmdline);
-                    break;
-                case SDLK_PAGEUP:
-                    _consoleScroll(_consoleCtx.lines - 1);
-                    updatelog = 1;
-                    break;
-                case SDLK_PAGEDOWN:
-                    _consoleScroll(-_consoleCtx.lines - 1);
-                    updatelog = 1;
-                    break;
-                default:
-                    // Process the key
-                    if((isprint(event->key.keysym.sym) && (event->key.keysym.sym >= 32))) {
-                        k = event->key.keysym.sym;
-                        if(event->key.keysym.mod & KMOD_SHIFT) {
-                            if(_consoleCtx.shiftMap[k] != 0) {
-                                k = _consoleCtx.shiftMap[k];
-                            }
-                        } else if(event->key.keysym.mod & KMOD_CAPS) {
-                            if((k >= 'a') && (k <= 'z')) {
-                                k += 'A' - 'a';
-                            }
-                        }
-                        consoleCmdLineInsertChar(_consoleCtx.cmdline, k);
-                    }
-            }
-    }
-
-    consoleCmdLineRender(_consoleCtx.cmdline);
-    //_consoleCmdMeshRebuild();
-    if(updatelog) {
-        _consoleMeshRebuild();
-    }
-}
-
-static void _consoleCmdMeshRebuild(void) {
-	int x;
-	int y;
-    int len;
-    int count;
-
-	y = _consoleCtx.height - fontGetHeight(_consoleCtx.font);
-
-	gfxMeshClear(_consoleCtx.cmdMesh);
-	fontPos(0, y);
-	fontSetColor(&(_consoleCtx.colorCursor));
-	if(_consoleCtx.offset) { // content is scrolled
-		fontBlitCMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, '<');
-	} else {
-		fontBlitCMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, '>');		
-	}
-
-	// Set a cursor
-	x = fontGetCharWidth(_consoleCtx.cmdFont, 'A') * (_consoleCtx.cursor - _consoleCtx.offset + 1);
-	fontPos(x, y);
-	fontBlitCMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, '_');
-
-	// Render the visible command line portion
-	fontSetColor(&(_consoleCtx.colorCmdText));
-	fontPos(fontGetCharWidth(_consoleCtx.cmdFont, '_'), y);
-    if((_consoleCtx.cmdlen - _consoleCtx.offset) < _consoleCtx.charsPerLine) {
-        count = _consoleCtx.cmdlen - _consoleCtx.offset;
-    } else {
-        count = _consoleCtx.charsPerLine;
-    }
-	fontBlitStrNMesh(_consoleCtx.cmdMesh, _consoleCtx.cmdFont, _consoleCtx.cmdbuf + _consoleCtx.offset, count);
-}
-
-int flubConsoleUpdate(Uint32 ticks, Uint32 elapsed2) {
-	int display = 0;
-    // TODO - use the passed elapsed value
-	Uint32 elapsed = flubAnimTicksElapsed(&(_consoleCtx.lastTick), ticks);
-
-	if(_consoleCtx.visible) {
-		flubAnimTick1Pti(&(_consoleCtx.slideAnim), elapsed, &(_consoleCtx.pos));
-	}
-	
-	if(_consoleCtx.show) {
-		display = 1;
-	} else {
-		if(_consoleCtx.pos > 0) {
-			display = 1;
-		} else {
-			_consoleCtx.visible = 0;
-		}
-	}
-
-	if(display){
-		videoOrthoMode();
-		glDisable(GL_TEXTURE_2D);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		// Draw the console background
-        flubColorGLColorAlphaSet(&(_consoleCtx.colorBackground));
-		glBegin(GL_QUADS);
-			glVertex2i(0, 0);
-			glVertex2i(_consoleCtx.width, 0);
-			glVertex2i(_consoleCtx.width, _consoleCtx.pos);
-			glVertex2i(0, _consoleCtx.pos);
-		glEnd();
-
-		// Draw the console text
-		glLoadIdentity();
-	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
-		gfxMeshRender(_consoleCtx.mesh);
-
-		// Draw the console input field
-		glLoadIdentity();
-	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
-		gfxMeshRender(_consoleCtx.cmdMesh);
-	}
-    return 1;
-}
-
-void consoleShow(int show) {
-	if(_consoleCtx.show != show) {
-		flubAnimReverse1Pti(&(_consoleCtx.slideAnim));
-		_consoleCtx.show = show;
-		if(show) {
-			_consoleCtx.visible = 1;
-            inputEventCapture(_consoleInputHandler);
-            _consoleCtx.capture = 1;
-            if(_consoleCtx.openSound != NULL) {
-                Mix_PlayChannel(0, _consoleCtx.openSound, 0);
-            }
-		} else {
-            if(_consoleCtx.capture) {
-                _consoleCtx.capture = 0;
-                inputEventRelease(_consoleInputHandler);
-            }
-            if(_consoleCtx.closeSound != NULL) {
-                Mix_PlayChannel(0, _consoleCtx.closeSound, 0);
-            }
-		}
-	}
-}
-
-void consoleClear(void) {
-    circBufClear(_consoleCtx.circbuf);
-    _consoleMeshRebuild();
-}
-
-int consoleVisible(void) {
-	return _consoleCtx.show;
-}
-
-static void _consoleMeshRebuild(void) {
-	int lines;
-	int count;
-	int line;
-	int pos;
-	char *buf;
-	int scroll;
-
-	// Determine the line count
-	count = circBufGetCount(_consoleCtx.circbuf);
-	if(count > (_consoleCtx.lines - 1)) {
-		lines = (_consoleCtx.lines - 1);
-	} else {
-		lines = count;
-	}
-
-	// Generate the scrollback mesh
-	if(count > lines) {
-        if(_consoleCtx.scrollback > (count - lines)) {
-            scroll = count - lines;
-        } else {
-            scroll = _consoleCtx.scrollback;
-        }
-    } else {
-        scroll = 0;
-    }
-
-	gfxMeshClear(_consoleCtx.mesh);
-	pos = _consoleCtx.height - (fontGetHeight(_consoleCtx.font) * 2);
-	for(line = count - 1; lines; line--) {
-		if(!circBufGetEntry(_consoleCtx.circbuf, line - scroll, ((void **)&buf), NULL)) {
-			continue;
-		}
-		fontPos(0, pos);
-        fontSetColor((flubColor4f_t *)buf);
-        buf += sizeof(flubColor4f_t);
-		fontBlitQCStrMesh(_consoleCtx.mesh, _consoleCtx.font, buf, &(_consoleCtx.colorOutText));
-		lines--;
-		pos -= fontGetHeight(_consoleCtx.font);
-	}
-}
-
-void consolePrint(const char *str) {
-	char *entry;
-	int pos;
-    flubColor4f_t color, lineColor;
-
-    flubColorCopy(&(_consoleCtx.colorOutText), &color);
-	while(1) {
-        flubColorCopy(&color, &lineColor);
-		fontGetStrLenQCWrap(_consoleCtx.font, str, *videoWidth, &pos, &color, &(_consoleCtx.colorOutText));
-		entry = circBufAllocNextEntryPtr(_consoleCtx.circbuf, pos + sizeof(lineColor) + 1);
-        memcpy(entry, &lineColor, sizeof(lineColor));
-        entry += sizeof(lineColor);
-		strncpy(entry, str, pos);
-		entry[pos] = '\0';
-		if(str[pos] == '\0') {
-			break;
-		}
-		str += pos;
-		_consoleCtx.scrollback--;
-		if(_consoleCtx.scrollback < 0) {
-			_consoleCtx.scrollback = 0;
-		}
-	}
-
-	_consoleMeshRebuild();
-}
-
-int consoleCmdRegister(const char *name, const char *help, consoleCmdHandler_t handler) {
-    consoleCmdEntry_t *entry;
-
-    entry = util_calloc(sizeof(consoleCmdEntry_t), 0, NULL);
-
-    entry->help = util_strdup(help);
-    entry->handler = handler;
-
-    if(!critbitInsert(&(_consoleCtx.handlers), name, entry, NULL)) {
-        errorf("Failed to add console command \"%s\"", name);
-        return 0;
-    }
-    return 1;
-}
-
-static int _consoleCmdDeleteCB(void *data, void *arg) {
-    consoleCmdEntry_t *entry = (consoleCmdEntry_t *)data;
-
-    util_free(entry->help);
-    util_free(entry);
-
-    return 1;
-}
-
-int consoleCmdUnregister(const char *name) {
-    return critbitDelete(&(_consoleCtx.handlers), name, _consoleCmdDeleteCB, NULL);
-}
-
-int consoleCmdListRegister(consoleCmd_t *list) {
-    int k;
-
-    for(k = 0; list[k].name != NULL; k++) {
-        if(!consoleCmdRegister(list[k].name, list[k].help, list[k].handler)) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-void consolePrintf(const char *fmt, ...) {
-    char buf[FLUB_CONSOLE_PRINT_BUF];
-    va_list ap;
-
-    va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
-    va_end(ap);
-    buf[sizeof(buf) - 1] = '\0';
-
-    consolePrint(buf);
-}
-
-static int _consoleCmdEnumCB(const char *name, void *data, void *arg) {
-    consolePrint(name);
-    return 1;
-}
-
-static void _consoleHelp(const char *name, int paramc, char **paramv) {
-    void *data;
-    char *prefix = "";
-
-    if(paramc > 0) {
-        prefix = paramv[0];
-    }
-
-    consolePrint("Console commands:");
-
-    critbitAllPrefixed(&(_consoleCtx.handlers), prefix, _consoleCmdEnumCB, NULL);
-}
-
-static int _consoleCfgEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
-    consolePrintf("* %s = %s", name, value);
-    return 1;
-}
-
-static void _consoleList(const char *name, int paramc, char **paramv) {
-    char *prefix = "";
-
-    if(paramc > 0) {
-        prefix = paramv[0];
-    }
-
-    consolePrintf("Config vars:");
-    flubCfgOptEnum(prefix, _consoleCfgEnumCB, NULL);
-}
-
-static void _consoleSet(const char *name, int paramc, char **paramv) {
-    if(paramc != 2) {
-        consolePrint("ERROR: set <name> <value>");
-        return;
-    }
-
-    flubCfgOptStringSet(paramv[0], paramv[1], 0);
-}
-
-static void _consoleBind(const char *name, int paramc, char **paramv) {
-    if(paramc != 2) {
-        consolePrint("ERROR: bind <key> <event>");
-        return;
-    }
-
-    inputActionBind(paramv[1], paramv[0]);
-}
-
-static void _consoleClear(const char *name, int paramc, char **paramv) {
-    consoleClear();
-}
-
-static void _consoleClose(const char *name, int paramc, char **paramv) {
-    consoleShow(0);
-}
-
-static void _consoleVersion(const char *name, int paramc, char **paramv) {
-    consolePrintf("%s version %d.%d", appDefaults.title, appDefaults.major, appDefaults.minor);
-    consolePrintf("Flub version %s", FLUB_VERSION_STRING);
-}
-
-void consoleBgImageSet(texture_t *tex) {
-    _consoleCtx.bgImage = tex;
+    static const char *_qcCode = "57311";
+	consolePrintf("^%c%s^=: %s", _qcCode[msg->level], msg->levelStr, msg->message);
 }
 
 static void _consoleMiscBufClear(void) {
@@ -1103,4 +579,545 @@ char *consoleCmdLineGetStr(conCmdLineCtx_t *ctx) {
 
     entry = _consoleCmdLineCheckHistory(ctx);
     return entry->buf;
+}
+
+static void _consoleUpdateDisplaySettings(int width, int height) {
+    _consoleCtx.height = ((float)height) * _consoleCtx.heightRatio;
+    _consoleCtx.width = width;
+    _consoleCtx.lines = _consoleCtx.height / fontGetHeight(_consoleCtx.font);
+    flubAnimInit1Pti(&(_consoleCtx.slideAnim), 0, _consoleCtx.height, _consoleCtx.speed);
+    if(!_consoleCtx.visible) {
+        flubAnimReverse1Pti(&(_consoleCtx.slideAnim));
+    }
+    _consoleCtx.charsPerLine = _consoleCtx.width / fontGetCharWidth(_consoleCtx.font, 'A');
+    _consoleCtx.cmdCharsPerLine = _consoleCtx.width / fontGetCharWidth(_consoleCtx.cmdFont, 'A');
+    _consoleCtx.scrollback = 0;
+    consoleCmdLineWidthChange(_consoleCtx.cmdline);
+}
+
+static void _consoleVideoCallback(int width, int height, int fullscreen) {
+    _consoleUpdateDisplaySettings(width, height);
+}
+
+static void _consoleShiftMapInit(void) {
+    int k;
+
+    memset(_consoleCtx.shiftMap, 0, sizeof(_consoleCtx.shiftMap));
+    for(k = 'a'; k <='z'; k++) {
+        _consoleCtx.shiftMap[k] = k + ('A' - 'a');
+    }
+    _consoleCtx.shiftMap['1'] = '!';
+    _consoleCtx.shiftMap['2'] = '@';
+    _consoleCtx.shiftMap['3'] = '#';
+    _consoleCtx.shiftMap['4'] = '$';
+    _consoleCtx.shiftMap['5'] = '%';
+    _consoleCtx.shiftMap['6'] = '^';
+    _consoleCtx.shiftMap['7'] = '&';
+    _consoleCtx.shiftMap['8'] = '*';
+    _consoleCtx.shiftMap['9'] = '(';
+    _consoleCtx.shiftMap['0'] = ')';
+    _consoleCtx.shiftMap['-'] = '_';
+    _consoleCtx.shiftMap['='] = '+';
+    _consoleCtx.shiftMap['['] = '{';
+    _consoleCtx.shiftMap[']'] = '}';
+    _consoleCtx.shiftMap['\\'] = '|';
+    _consoleCtx.shiftMap[';'] = ':';
+    _consoleCtx.shiftMap['\''] = '"';
+    _consoleCtx.shiftMap[','] = '<';
+    _consoleCtx.shiftMap['.'] = '>';
+    _consoleCtx.shiftMap['/'] = '?';
+}
+
+void flubConsoleShutdown(void) {
+	logRemoveNotifiee(_consoleLogCB);
+
+	videoRemoveNotifiee(_consoleVideoCallback);
+}
+
+static void _consoleOpenHandler(SDL_Event *event, int pressed, int motion, int x, int y) {
+    if(pressed) {
+        consoleShow(1);
+    }
+}
+
+void _consoleVarNotifyCB(const char *name, const char *value) {
+
+}
+
+int flubConsoleInit(appDefaults_t *defaults) {
+    _consoleCtx.openSound = audioSoundGet("resources/sounds/consoleopen.wav");
+    _consoleCtx.closeSound = audioSoundGet("resources/sounds/consoleclose.wav");
+
+    if(!flubCfgOptListAdd(_consoleVars)) {
+        return 0;
+    }
+    if(!flubCfgPrefixNotifieeAdd("console_", _consoleVarNotifyCB)) {
+        return 0;
+    }
+
+    _consoleCtx.cmdline = consoleCmdLineInit(CONSOLE_CMDLINE_LINE_LEN, CONSOLE_CMDLINE_HISTORY_LEN);
+
+    return 1;
+}
+
+static void _consoleMeshRebuild(void);
+static void _consoleCmdMeshRebuild(void);
+static void _consoleHelp(const char *name, int paramc, char **paramv);
+static void _consoleList(const char *name, int paramc, char **paramv);
+static void _consoleSet(const char *name, int paramc, char **paramv);
+static void _consoleBind(const char *name, int paramc, char **paramv);
+static void _consoleClear(const char *name, int paramc, char **paramv);
+static void _consoleClose(const char *name, int paramc, char **paramv);
+static void _consoleVersion(const char *name, int paramc, char **paramv);
+
+void consoleCmdLineRender(conCmdLineCtx_t *ctx);
+
+int flubConsoleStart(void) {
+    //_consoleCtx.cmdbuf[0] = '\0';
+    _consoleShiftMapInit();
+
+    if((_consoleCtx.circbuf = circBufInit(FLUB_CONSOLE_BUF_SIZE, FLUB_CONSOLE_BUF_ENTRIES, 1)) == NULL) {
+        return 0;
+    }
+
+    if((!consoleCmdRegister("help", "help [prefix]", _consoleHelp)) ||
+       (!consoleCmdRegister("list", "list [prefix]", _consoleList)) ||
+       (!consoleCmdRegister("bind", "bind <key> <action>", _consoleBind)) ||
+       (!consoleCmdRegister("clear", "clear", _consoleClear)) ||
+       (!consoleCmdRegister("close", "close", _consoleClose)) ||
+       (!consoleCmdRegister("version", "version", _consoleVersion)) ||
+       (!consoleCmdRegister("set", "set <var> <value>", _consoleSet))) {
+        return 0;
+    }
+
+    if(!inputActionRegister("General", 0, "showconsole", "Display the console", _consoleOpenHandler)) {
+        return 0;
+    }
+
+    if((_consoleCtx.font = fontGet("courier", 12, 1)) == NULL) {
+        return 0;
+    }
+
+    if((_consoleCtx.cmdFont = fontGet("courier", 12, 1)) == NULL) {
+        return 0;
+    }
+
+    if((_consoleCtx.mesh = gfxMeshCreate(MESH_QUAD_SIZE(FLUB_CONSOLE_MESH_SIZE), GL_TRIANGLES, 1, fontTextureGet(_consoleCtx.font))) == NULL) {
+        return 0;
+    }
+
+    if((_consoleCtx.cmdMesh = gfxMeshCreate(MESH_QUAD_SIZE(FLUB_CONSOLE_CMD_MESH_SIZE), GL_TRIANGLES, 1, fontTextureGet(_consoleCtx.cmdFont))) == NULL) {
+        return 0;
+    }
+
+    if(!videoAddNotifiee(_consoleVideoCallback)) {
+        return 0;
+    }
+
+    _consoleVideoCallback(*videoWidth, *videoHeight, videoIsFullscreen());
+
+    consoleCmdLineRender(_consoleCtx.cmdline);
+
+    logAddNotifiee(_consoleLogCB);
+
+    return 1;
+}
+
+static void _consoleScroll(int amount) {
+    _consoleCtx.scrollback += amount;
+    if(_consoleCtx.scrollback > (circBufGetCount(_consoleCtx.circbuf) - _consoleCtx.lines)) {
+        _consoleCtx.scrollback = (circBufGetCount(_consoleCtx.circbuf) - _consoleCtx.lines);
+    }
+    if(_consoleCtx.scrollback < 0) {
+        _consoleCtx.scrollback = 0;
+    }
+}
+
+static char **_consoleCmdParse(int *count, char *input) {
+    static char *tokens[FLUB_CONSOLE_MAX_TOKENS];
+
+    memcpy(_consoleCtx.cmdparse, input, sizeof(_consoleCtx.cmdparse));
+    *count = strTokenize(_consoleCtx.cmdparse, tokens, FLUB_CONSOLE_MAX_TOKENS);
+
+    return tokens;
+}
+
+void consoleCmdLineRender(conCmdLineCtx_t *ctx);
+void consoleCmdLineNext(conCmdLineCtx_t *ctx);
+char *consoleCmdLineGetStr(conCmdLineCtx_t *ctx);
+void consoleCmdLineHistPrev(conCmdLineCtx_t *ctx);
+void consoleCmdLineHistNext(conCmdLineCtx_t *ctx);
+void consoleCmdLineCharPrev(conCmdLineCtx_t *ctx);
+void consoleCmdLineCharNext(conCmdLineCtx_t *ctx);
+void consoleCmdLineWordPrev(conCmdLineCtx_t *ctx);
+void consoleCmdLineWordNext(conCmdLineCtx_t *ctx);
+void consoleCmdLineInsertStr(conCmdLineCtx_t *ctx, const char *str);
+void consoleCmdLineInsertChar(conCmdLineCtx_t *ctx, char c);
+void consoleCmdLineDelete(conCmdLineCtx_t *ctx);
+void consoleCmdLineBackspace(conCmdLineCtx_t *ctx);
+
+static void _consoleInputHandler(SDL_Event *event, int pressed, int motion, int x, int y) {
+    char *ptr;
+    int k;
+    consoleCmdEntry_t *entry;
+    char **tokens;
+    int tcount;
+    char *cmd;
+    int updatelog = 0;
+
+    switch(event->type) {
+        case SDL_KEYDOWN:
+            switch(event->key.keysym.sym) {
+                case SDLK_BACKQUOTE:
+                    consoleShow(0);
+                    break;
+                //case SDLK_BACKQUOTE:
+                    // We catch this to avoid an unwanted stray backtick when opening/closing the console
+                    break;
+                case SDLK_TAB:
+                    // Command hinting
+                    break;
+                case SDLK_BACKSPACE:
+                    consoleCmdLineBackspace(_consoleCtx.cmdline);
+                    break;
+                case SDLK_RETURN:
+                    cmd = consoleCmdLineGetStr(_consoleCtx.cmdline);
+                    tokens = _consoleCmdParse(&tcount, cmd);
+                    if(tcount > 0) {
+                        if(critbitContains(&(_consoleCtx.handlers), tokens[0], ((void **)&entry))) {
+                            entry->handler(tokens[0], tcount - 1, tokens + 1);
+                        } else {
+                            consolePrintf("Unknown command: %s", cmd);
+                        }
+                    }
+                    consoleCmdLineNext(_consoleCtx.cmdline);
+                    break;
+                case SDLK_UP:
+                    consoleCmdLineHistPrev(_consoleCtx.cmdline);
+                    break;
+                case SDLK_DOWN:
+                    consoleCmdLineHistNext(_consoleCtx.cmdline);
+                    break;
+                case SDLK_RIGHT:
+                    if(event->key.keysym.mod & KMOD_CTRL) {
+                        consoleCmdLineWordNext(_consoleCtx.cmdline);
+                    } else {
+                        consoleCmdLineCharNext(_consoleCtx.cmdline);                        
+                    }
+                    break;
+                case SDLK_LEFT:
+                    if(event->key.keysym.mod & KMOD_CTRL) {
+                        consoleCmdLineWordPrev(_consoleCtx.cmdline);
+                    } else {
+                        consoleCmdLineCharPrev(_consoleCtx.cmdline);
+                    }
+                    break;
+                case SDLK_HOME:
+                    // TODO - home
+                    break;
+                case SDLK_END:
+                    // TODO - End
+                    break;
+                case SDLK_DELETE:
+                    consoleCmdLineDelete(_consoleCtx.cmdline);
+                    break;
+                case SDLK_PAGEUP:
+                    _consoleScroll(_consoleCtx.lines - 1);
+                    updatelog = 1;
+                    break;
+                case SDLK_PAGEDOWN:
+                    _consoleScroll(-_consoleCtx.lines - 1);
+                    updatelog = 1;
+                    break;
+                default:
+                    // Process the key
+                    if((isprint(event->key.keysym.sym) && (event->key.keysym.sym >= 32))) {
+                        k = event->key.keysym.sym;
+                        if(event->key.keysym.mod & KMOD_SHIFT) {
+                            if(_consoleCtx.shiftMap[k] != 0) {
+                                k = _consoleCtx.shiftMap[k];
+                            }
+                        } else if(event->key.keysym.mod & KMOD_CAPS) {
+                            if((k >= 'a') && (k <= 'z')) {
+                                k += 'A' - 'a';
+                            }
+                        }
+                        consoleCmdLineInsertChar(_consoleCtx.cmdline, k);
+                    }
+            }
+    }
+
+    consoleCmdLineRender(_consoleCtx.cmdline);
+    //_consoleCmdMeshRebuild();
+    if(updatelog) {
+        _consoleMeshRebuild();
+    }
+}
+
+int flubConsoleUpdate(Uint32 ticks, Uint32 elapsed2) {
+	int display = 0;
+    // TODO - use the passed elapsed value
+	Uint32 elapsed = flubAnimTicksElapsed(&(_consoleCtx.lastTick), ticks);
+
+	if(_consoleCtx.visible) {
+		flubAnimTick1Pti(&(_consoleCtx.slideAnim), elapsed, &(_consoleCtx.pos));
+	}
+	
+	if(_consoleCtx.show) {
+		display = 1;
+	} else {
+		if(_consoleCtx.pos > 0) {
+			display = 1;
+		} else {
+			_consoleCtx.visible = 0;
+		}
+	}
+
+	if(display){
+		videoOrthoMode();
+		glDisable(GL_TEXTURE_2D);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		// Draw the console background
+        flubColorGLColorAlphaSet(&(_consoleCtx.colorBackground));
+		glBegin(GL_QUADS);
+			glVertex2i(0, 0);
+			glVertex2i(_consoleCtx.width, 0);
+			glVertex2i(_consoleCtx.width, _consoleCtx.pos);
+			glVertex2i(0, _consoleCtx.pos);
+		glEnd();
+
+		// Draw the console text
+		glLoadIdentity();
+	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
+		gfxMeshRender(_consoleCtx.mesh);
+
+		// Draw the console input field
+		glLoadIdentity();
+	    glTranslated(0, _consoleCtx.pos - _consoleCtx.height, 0);
+		gfxMeshRender(_consoleCtx.cmdMesh);
+	}
+    return 1;
+}
+
+void consoleShow(int show) {
+	if(_consoleCtx.show != show) {
+		flubAnimReverse1Pti(&(_consoleCtx.slideAnim));
+		_consoleCtx.show = show;
+		if(show) {
+			_consoleCtx.visible = 1;
+            inputEventCapture(_consoleInputHandler);
+            _consoleCtx.capture = 1;
+            if(_consoleCtx.openSound != NULL) {
+                Mix_PlayChannel(0, _consoleCtx.openSound, 0);
+            }
+		} else {
+            if(_consoleCtx.capture) {
+                _consoleCtx.capture = 0;
+                inputEventRelease(_consoleInputHandler);
+            }
+            if(_consoleCtx.closeSound != NULL) {
+                Mix_PlayChannel(0, _consoleCtx.closeSound, 0);
+            }
+		}
+	}
+}
+
+void consoleClear(void) {
+    circBufClear(_consoleCtx.circbuf);
+    _consoleMeshRebuild();
+}
+
+int consoleVisible(void) {
+	return _consoleCtx.show;
+}
+
+static void _consoleMeshRebuild(void) {
+	int lines;
+	int count;
+	int line;
+	int pos;
+	char *buf;
+	int scroll;
+
+	// Determine the line count
+	count = circBufGetCount(_consoleCtx.circbuf);
+	if(count > (_consoleCtx.lines - 1)) {
+		lines = (_consoleCtx.lines - 1);
+	} else {
+		lines = count;
+	}
+
+	// Generate the scrollback mesh
+	if(count > lines) {
+        if(_consoleCtx.scrollback > (count - lines)) {
+            scroll = count - lines;
+        } else {
+            scroll = _consoleCtx.scrollback;
+        }
+    } else {
+        scroll = 0;
+    }
+
+	gfxMeshClear(_consoleCtx.mesh);
+	pos = _consoleCtx.height - (fontGetHeight(_consoleCtx.font) * 2);
+	for(line = count - 1; lines; line--) {
+		if(!circBufGetEntry(_consoleCtx.circbuf, line - scroll, ((void **)&buf), NULL)) {
+			continue;
+		}
+		fontPos(0, pos);
+        fontSetColor((flubColor4f_t *)buf);
+        buf += sizeof(flubColor4f_t);
+		fontBlitQCStrMesh(_consoleCtx.mesh, _consoleCtx.font, buf, &(_consoleCtx.colorOutText));
+		lines--;
+		pos -= fontGetHeight(_consoleCtx.font);
+	}
+}
+
+void consolePrint(const char *str) {
+	char *entry;
+	int pos;
+    flubColor4f_t color, lineColor;
+
+    flubColorCopy(&(_consoleCtx.colorOutText), &color);
+	while(1) {
+        flubColorCopy(&color, &lineColor);
+		fontGetStrLenQCWrap(_consoleCtx.font, str, *videoWidth, &pos, &color, &(_consoleCtx.colorOutText));
+		entry = circBufAllocNextEntryPtr(_consoleCtx.circbuf, pos + sizeof(lineColor) + 1);
+        memcpy(entry, &lineColor, sizeof(lineColor));
+        entry += sizeof(lineColor);
+		strncpy(entry, str, pos);
+		entry[pos] = '\0';
+		if(str[pos] == '\0') {
+			break;
+		}
+		str += pos;
+		_consoleCtx.scrollback--;
+		if(_consoleCtx.scrollback < 0) {
+			_consoleCtx.scrollback = 0;
+		}
+	}
+
+	_consoleMeshRebuild();
+}
+
+int consoleCmdRegister(const char *name, const char *help, consoleCmdHandler_t handler) {
+    consoleCmdEntry_t *entry;
+
+    entry = util_calloc(sizeof(consoleCmdEntry_t), 0, NULL);
+
+    entry->help = util_strdup(help);
+    entry->handler = handler;
+
+    if(!critbitInsert(&(_consoleCtx.handlers), name, entry, NULL)) {
+        errorf("Failed to add console command \"%s\"", name);
+        return 0;
+    }
+    return 1;
+}
+
+static int _consoleCmdDeleteCB(void *data, void *arg) {
+    consoleCmdEntry_t *entry = (consoleCmdEntry_t *)data;
+
+    util_free(entry->help);
+    util_free(entry);
+
+    return 1;
+}
+
+int consoleCmdUnregister(const char *name) {
+    return critbitDelete(&(_consoleCtx.handlers), name, _consoleCmdDeleteCB, NULL);
+}
+
+int consoleCmdListRegister(consoleCmd_t *list) {
+    int k;
+
+    for(k = 0; list[k].name != NULL; k++) {
+        if(!consoleCmdRegister(list[k].name, list[k].help, list[k].handler)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+void consolePrintf(const char *fmt, ...) {
+    char buf[FLUB_CONSOLE_PRINT_BUF];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    buf[sizeof(buf) - 1] = '\0';
+
+    consolePrint(buf);
+}
+
+static int _consoleCmdEnumCB(const char *name, void *data, void *arg) {
+    consolePrint(name);
+    return 1;
+}
+
+static void _consoleHelp(const char *name, int paramc, char **paramv) {
+    void *data;
+    char *prefix = "";
+
+    if(paramc > 0) {
+        prefix = paramv[0];
+    }
+
+    consolePrint("Console commands:");
+
+    critbitAllPrefixed(&(_consoleCtx.handlers), prefix, _consoleCmdEnumCB, NULL);
+}
+
+static int _consoleCfgEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
+    consolePrintf("* %s = %s", name, value);
+    return 1;
+}
+
+static void _consoleList(const char *name, int paramc, char **paramv) {
+    char *prefix = "";
+
+    if(paramc > 0) {
+        prefix = paramv[0];
+    }
+
+    consolePrintf("Config vars:");
+    flubCfgOptEnum(prefix, _consoleCfgEnumCB, NULL);
+}
+
+static void _consoleSet(const char *name, int paramc, char **paramv) {
+    if(paramc != 2) {
+        consolePrint("ERROR: set <name> <value>");
+        return;
+    }
+
+    flubCfgOptStringSet(paramv[0], paramv[1], 0);
+}
+
+static void _consoleBind(const char *name, int paramc, char **paramv) {
+    if(paramc != 2) {
+        consolePrint("ERROR: bind <key> <event>");
+        return;
+    }
+
+    inputActionBind(paramv[1], paramv[0]);
+}
+
+static void _consoleClear(const char *name, int paramc, char **paramv) {
+    consoleClear();
+}
+
+static void _consoleClose(const char *name, int paramc, char **paramv) {
+    consoleShow(0);
+}
+
+static void _consoleVersion(const char *name, int paramc, char **paramv) {
+    consolePrintf("%s version %d.%d", appDefaults.title, appDefaults.major, appDefaults.minor);
+    consolePrintf("Flub version %s", FLUB_VERSION_STRING);
+}
+
+void consoleBgImageSet(texture_t *tex) {
+    _consoleCtx.bgImage = tex;
 }
