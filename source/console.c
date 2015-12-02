@@ -661,7 +661,9 @@ int flubConsoleInit(appDefaults_t *defaults) {
 
 static void _consoleMeshRebuild(void);
 static void _consoleHelp(const char *name, int paramc, char **paramv);
-static void _consoleList(const char *name, int paramc, char **paramv);
+static void _consoleListBinds(const char *name, int paramc, char **paramv);
+static void _consoleListActions(const char *name, int paramc, char **paramv);
+static void _consoleListVars(const char *name, int paramc, char **paramv);
 static void _consoleSet(const char *name, int paramc, char **paramv);
 static void _consoleBind(const char *name, int paramc, char **paramv);
 static void _consoleClear(const char *name, int paramc, char **paramv);
@@ -670,7 +672,9 @@ static void _consoleVersion(const char *name, int paramc, char **paramv);
 
 consoleCmd_t _consoleCmdList[] = {
     {"help", "help [prefix]", _consoleHelp},
-    {"list", "list [prefix]", _consoleList},
+    {"listbinds", "listbinds [prefix]", _consoleListBinds},
+    {"listactions", "listactions [prefix]", _consoleListActions},
+    {"listvars", "listvars [prefix]", _consoleListVars},
     {"bind", "bind <key> <action>", _consoleBind},
     {"clear", "clear", _consoleClear},
     {"close", "close", _consoleClose},
@@ -792,7 +796,7 @@ static void _consoleInputHandler(SDL_Event *event, int pressed, int motion, int 
                         if(critbitContains(&(_consoleCtx.handlers), tokens[0], ((void **)&entry))) {
                             entry->handler(tokens[0], tcount - 1, tokens + 1);
                         } else {
-                            consolePrintf("Unknown command: %s", cmd);
+                            consolePrintf("^7Unknown command^=: %s", cmd);
                         }
                     }
                     consoleCmdLineNext(_consoleCtx.cmdline);
@@ -1155,20 +1159,89 @@ static void _consoleHelp(const char *name, int paramc, char **paramv) {
     consoleColumnatorEnd(&col);
 }
 
-static int _consoleCfgEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
-    consolePrintf("* %s = %s", name, value);
+static int _consoleCfgLenEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
+    int maxlen = *((int *)ctx);
+    int len = strlen(name);
+    if(len > *((int *)ctx)) {
+        *((int *)ctx) = len;
+    }
     return 1;
 }
 
-static void _consoleList(const char *name, int paramc, char **paramv) {
+static int _consoleCfgEnumCB(void *ctx, const char *name, const char *value, const char *defValue, int flags) {
+    int maxlen = *((int *)ctx);
+
+    consolePrintf("    %c %c %c %c  %-*.*s: %s",
+                  (((value != NULL) && (value != defValue)) ? 'X' : ' '),
+                  ((flags & FLUB_CFG_FLAG_DIRTY) ? 'D' : ' '),
+                  ((flags & FLUB_CFG_FLAG_CLIENT) ? 'C' : ' '),
+                  ((flags & FLUB_CFG_FLAG_SERVER) ? 'S' : ' '),
+                  maxlen, maxlen, name, value);
+
+    return 1;
+}
+
+static void _consoleListVars(const char *name, int paramc, char **paramv) {
     char *prefix = "";
+    int maxlen = 0;
 
     if(paramc > 0) {
         prefix = paramv[0];
+        consolePrintf("^7Config vars^= (^7prefix:^5%s^=):", prefix);
+    } else {
+        consolePrintf("^7Config vars^=:");
     }
 
-    consolePrintf("Config vars:");
-    flubCfgOptEnum(prefix, _consoleCfgEnumCB, NULL);
+    flubCfgOptEnum(prefix, _consoleCfgLenEnumCB, ((void *)(&maxlen)));
+    flubCfgOptEnum(prefix, _consoleCfgEnumCB, ((void *)(&maxlen)));
+}
+
+static int _consoleInputLenEnumCB(const char *name, void *context) {
+    conOutColumnator_t *col = (conOutColumnator_t *)context;
+    consoleColumnatorCheckSize(col, strlen(name));
+    return 1;
+}
+
+static int _consoleInputEnumCB(const char *name, void *context) {
+    conOutColumnator_t *col = (conOutColumnator_t *)context;
+    consoleColumnatorAdd(col, name);
+    return 1;
+}
+
+static void _consoleListBinds(const char *name, int paramc, char **paramv) {
+    char *prefix = "";
+    conOutColumnator_t col;
+
+    if(paramc > 0) {
+        prefix = paramv[0];
+        consolePrintf("^7Input bindings^= (^7prefix:^5%s^=):", prefix);
+    } else {
+        consolePrintf("^7Input bindings^=:");
+    }
+
+    consoleColumnatorInit(&col, 0);
+    inputEnumBindings(_consoleInputLenEnumCB, ((void *)&col));
+    consoleColumnatorBegin(&col);
+    inputEnumBindings(_consoleInputEnumCB, ((void *)&col));
+    consoleColumnatorEnd(&col);
+}
+
+static void _consoleListActions(const char *name, int paramc, char **paramv) {
+    char *prefix = "";
+    conOutColumnator_t col;
+
+    if(paramc > 0) {
+        prefix = paramv[0];
+        consolePrintf("^7Input actions^= (^7prefix:^5%s^=):", prefix);
+    } else {
+        consolePrintf("^7Input actions^=:");
+    }
+
+    consoleColumnatorInit(&col, 0);
+    inputEnumActions(_consoleInputLenEnumCB, ((void *)&col));
+    consoleColumnatorBegin(&col);
+    inputEnumActions(_consoleInputEnumCB, ((void *)&col));
+    consoleColumnatorEnd(&col);
 }
 
 static void _consoleSet(const char *name, int paramc, char **paramv) {
