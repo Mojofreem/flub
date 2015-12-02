@@ -1,138 +1,108 @@
 Flub
 
-logger
-app
-audio
-cmdline
-config
-console
-core
-font
-gfx
-gui
-input
-layout
-license
-memory
-module
-physfsrwops
-physfsutil
-sdl
-simpleedit
-stbfont
-texture
+--------------------------------------------
+alpha
+============================================
+resource handler
+    load resources from common text file format
+    console binding for resource loading
+
 theme
-thread
-video
-widget
+    fragment blitters
+    fragment resizer
+    theming tool
+        QT
 
-App
-    major
-    minor
-    argc
-    argv
-    cmd line context
-    title
-    config file
-    binding file
-    archive file
-    video mode
-    full screen
-    all video mode change
-    allow fullscreen change
-    default command line handler
-    command line help str
-    resource list
-    frame stack size
+widgets
+    base widget
+    I/O handler
+    renderer
+
+layout engine
+    xml templates
+    runtime binding API
+
+gui
+    widget management
+    input handler
+    mouse cursor
+    text cursor
+    text edit box
+
+widgets
+    button
+    window
+    frame
+    label
+    checkbox
+    radio button
+    sprite box
+    scrollbar
+    text edit
+    list box
+    combo box
+    slider
+    spinbox
+    status bar
+    tool bar
+
+--------------------------------------------
+Beta
+============================================
+
+Refactor - major
+Doxygen - comment the primary library calls
+
+--------------------------------------------
+OnePointOh
+============================================
 
 
-init
-    instantiate all modules
+--------------------------------------------
+New features
+============================================
 
-app defines command line options and config vars
+console theming
+    no hard coded colors/fonts/textures
 
-start
-    start all modules
-    process command line options
-
-app starts
-
-shutdown
-
-
-name, desc, default, validator, update, type, ptr
-
-int
-float
-str (copy)
-str (alloc)
-color
-color w/ alpha
-
-
-
-console API improvements
-    console output API
-    console input API
-    console command API
-    color coded output
-    columnated output
-    tabulated output
+console command editor
+    command hinting
+    param hinting
     tab completion
-        command hinting
-        param hinting
-    input feedback
-        color coded input validation
 
-    typedef int (*consoleCmdParamValidator_t)(void *context, int paramPos, const char *param);
-    typedef void (*consoleCmdParamHinter_t)(void *context, int paramPos, const char **params);
+console table output formatter
 
-    typedef struct consoleCmdItem_s {
-        const char *name;
-        consoleCmdParamValidator_t validator;
-    } consoleCmdItem_t;
-
-input
-    provide filtered text input
+filter input to produce processed text
         (shift and ctrl mapping)
+        [currently ad-hoc'd in console]
 
-screen capture
-    letterbox capture
-    zlib compress/expand image
+letterbox screen capture
 
-simple image processing
-    black and white filter
-    color tinting filter
+zlib compress/expand texture images
 
-shader
-    black and white
-        fade, using user variable
-    sepia/old timey
-        fade, using user variable
+black and white texture filter
 
-theme system
-    data structure
-    parser
+color tinting texture filter
+
+gl shader: black and white
+    w/ caller definable fade
+
+gl shader: sepia/old timey
+    w/ caller definable fade
 
 updated doxygen template
-begin documenting finished areas of code
 
-boot order init system
-on init, each module gives a start callback, and a list of dependeny modules.
-flub waits to call a given modules start callback until all dependencies have
-been started.
-module configuration structure?
-    fields for all registration purposes
+document completed API modules
 
-primarily buffer based
 provide convenience direct mode work alikes
+
 use z layer to provide layering effects in 2D plane with fewer meshes
 
 drawing primitives
-font blit to raw buffer
+    font blit to raw buffer
 
 clean up existing API modules
-logical seperation
+    logical seperation
 
 Update font conversion tool to allow splicing fonts
     renumber glyphs
@@ -174,7 +144,7 @@ unified asset definition file
     define textures/fonts/slices/tilesets/ui templates
     validate object presence at startup
 
-
+=============================================================================
 
 <texture file="..." name="..." minfilter="..." magfilter="..." colorkey="..."/>
 <font file="..." name="..." size="#"/>
@@ -452,7 +422,42 @@ Instance
 
 
 
+logger
+app
+audio
+cmdline
+config
+console
+core
+font
+gfx
+gui
+input
+layout
+license
+memory
+module
+physfsrwops
+physfsutil
+sdl
+simpleedit
+stbfont
+texture
+theme
+thread
+video
+widget
 
+
+config var ptr association
+    name, desc, default, validator, update, type, ptr
+
+    int
+    float
+    str (copy)
+    str (alloc)
+    color
+    color w/ alpha
 
 
 
