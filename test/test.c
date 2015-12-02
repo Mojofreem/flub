@@ -512,6 +512,12 @@ int main(int argc, char *argv[]) {
     b = 480;
     videoScreenRatioResize(&a, &b);
 
+    int cw[] = {4, 10, 10, 5, 30};
+    consoleTabularDivider(1, 5, cw);
+
+    char *ct[6] = {"1234", "foolio", "foobar", "XC-M-", "This is a really nifty test, yo, yo, yo, donkey man jones"};
+    consoleTabularPrint(1, 5, cw, ct);
+
     lastTick = SDL_GetTicks();
     while (keepGoing) {
         current = SDL_GetTicks();

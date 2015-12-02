@@ -19,6 +19,7 @@ typedef struct flubCfgOptList_s {
     const char *def_value;
     int flags;
     cfgValidateCB_t validate;
+    cfgValidateCB_t update;
 } flubCfgOptList_t;
 
 
@@ -41,6 +42,9 @@ void flubCfgResetAll(const char *prefix);
 
 int flubCfgLoad(const char *filename);
 int flubCfgSave(const char *filename, int all);
+
+void flubCfgVarUpdateInList(flubCfgOptList_t *list, const char *name, const char *value);
+void flubCfgVarUpdateAllInList(flubCfgOptList_t *list);
 
 int flubCfgOptNotifieeAdd(const char *name, cfgNotifyCB_t callback);
 int flubCfgAllNotifieeAdd(cfgNotifyCB_t callback);
