@@ -10,7 +10,34 @@ struct {
 	};
 
 
-int flubPollEvent(SDL_Event *event, Uint32 *ticks, Uint32 *elapsed, Uint32 *wait) {
+int flubPollEvent(SDL_Event *event, Uint32 *wait) {
+	Uint32 currentTicks;
+	int timeout;
+
+	currentTicks = SDL_GetTicks();
+
+	if(wait != NULL) {
+		*wait -= currentTicks;
+		if(*wait <= 0) {
+			*wait = 0;
+		} else {
+            timeout = *wait;
+        }
+	} else {
+		timeout = 0;
+	}
+
+	while(1) {
+		if(!SDL_WaitEventTimeout(event, timeout)) {
+			return 0;
+		}
+
+		// TODO Pre-filter event, before passing on to caller
+		return 1;
+	}
+}
+
+Uint32 flubTicksRefresh(Uint32 *elapsed) {
 	Uint32 currentTicks;
 	Uint32 elapsedTicks;
 	int result;
@@ -27,34 +54,11 @@ int flubPollEvent(SDL_Event *event, Uint32 *ticks, Uint32 *elapsed, Uint32 *wait
 	_coreCtx.lastTick = currentTicks;
 	_coreCtx.elapsed = elapsedTicks;
 
-	if(ticks != NULL) {
-		*ticks = currentTicks;
-	}
-
 	if(elapsed != NULL) {
 		*elapsed = elapsedTicks;
 	}
 
-	if(wait != NULL) {
-		*wait -= currentTicks;
-		if(*wait <= 0) {
-			*wait = 0;
-		} else {
-            timeout = *wait;
-        }
-	} else {
-		timeout = 0;
-	}
-
-	while(1) {
-
-		if(!SDL_WaitEventTimeout(event, timeout)) {
-			return 0;
-		}
-
-		// TODO Pre-filter event, before passing on to caller
-		return 1;
-	}
+	return currentTicks;
 }
 
 Uint32 flubTicksElapsed(void) {
@@ -64,4 +68,3 @@ Uint32 flubTicksElapsed(void) {
 Uint32 flubTicksGet(void) {
 	return _coreCtx.lastTick;
 }
-

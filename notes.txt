@@ -62,6 +62,10 @@ OnePointOh
 New features
 ============================================
 
+animated textures
+    gif loader
+    global timer/instance timer
+    
 console theming
     no hard coded colors/fonts/textures
 

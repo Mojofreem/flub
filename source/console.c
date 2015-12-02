@@ -669,6 +669,7 @@ static void _consoleBind(const char *name, int paramc, char **paramv);
 static void _consoleClear(const char *name, int paramc, char **paramv);
 static void _consoleClose(const char *name, int paramc, char **paramv);
 static void _consoleVersion(const char *name, int paramc, char **paramv);
+static void _consoleQuit(const char *name, int paramc, char **paramv);
 
 consoleCmd_t _consoleCmdList[] = {
     {"help", "help [prefix]", _consoleHelp},
@@ -680,6 +681,7 @@ consoleCmd_t _consoleCmdList[] = {
     {"close", "close", _consoleClose},
     {"version", "version", _consoleVersion},
     {"set", "set <var> <value>", _consoleSet},
+    {"quit", "quit", _consoleQuit},
     CONSOLE_COMMAND_LIST_END(),
 };
 
@@ -1273,6 +1275,10 @@ static void _consoleClose(const char *name, int paramc, char **paramv) {
 static void _consoleVersion(const char *name, int paramc, char **paramv) {
     consolePrintf("^7%s^= version ^5%d^=.^5%d^=", appDefaults.title, appDefaults.major, appDefaults.minor);
     consolePrintf("^7Flub^= version ^5%s^=", FLUB_VERSION_STRING);
+}
+
+static void _consoleQuit(const char *name, int paramc, char **paramv) {
+    appQuit();
 }
 
 void consoleBgImageSet(texture_t *tex) {
