@@ -737,30 +737,6 @@ void videoScreenRatioResize(int *width, int *height) {
            w, h, ratio, oldRatio, *width, *height, newRatio);
 }
 
-/*
-void videoScreenRatioResize(int *width, int *height) {
-    //  r = h / w
-    //  h = r * w
-    //  w = h / r
-    float ratio = ((float)(_videoHeight)) / ((float)(_videoWidth));
-    int newHeight = *height;
-    int newWidth = *width;
-    if((((float)(*width)) * ratio) > (*height)) {
-        newWidth = ((float)(*height)) / ratio;
-    } else {
-        newHeight = ((float)(*width)) * ratio;
-    }
-    float oldRatio = ((float)(*height)) / ((float)(*width));
-    float newRatio = ((float)newHeight) / ((float)newWidth);
-    debugf(DBG_VIDEO, DBG_VID_DTL_CAPTURE, "videoRatioResize(%d,%d) Screen: %.2f, Orig: %.2f, New: (%d,%d) %.2f",
-           *width, *height, ratio, oldRatio, newWidth, newHeight, newRatio);
-    *width = newWidth;
-    *height = newHeight;
-}
-
-
-*/
-
 size_t videoFrameMemSize(int width, int height) {
     // 3 bytes per pixel, RGB
     return width * height * 3;
