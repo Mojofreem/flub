@@ -797,55 +797,72 @@ static void _videoImageScaleLine(unsigned char *srcData, int srcWidth, unsigned 
 void videoImageResize(unsigned char *srcData, int srcWidth, int srcHeight,
                       unsigned char *destData, int destWidth, int destHeight,
                       int bytesPerPixel, int forceRatio,
-                      int red, int green, int blue, int alpha) {
+                      flubColor4f_t *color) {
+    int preX, preY;
+    int x, y;
+    int scaledWidth = destWidth;
+    int scaledHeight = destHeight;
     int rows = destHeight;
-    int integerPart = ((srcHeight / destHeight) * srcWidth) * bytesPerPixel;
-    int fractionalPart = srcHeight % destHeight;
+    int integerPart;
+    int fractionalPart;
     int E = 0;
-    int k, j;
-    int letterboxRows = 0;
+    int k;
+
+    int red = COLOR_FTOI(color->red);
+    int green = COLOR_FTOI(color->green);
+    int blue = COLOR_FTOI(color->blue);
+    int alpha = COLOR_FTOI(color->alpha);
 
     if(forceRatio) {
-        int w = destWidth;
-        int h = destHeight;
-        videoRatioResize(srcWidth, srcHeight, &w, &h);
-        if(h < destHeight) {
-            k = ((destHeight - h) / 2) * destWidth * bytesPerPixel;
-            for(; k > 0; k--) {
-                for(j = 0; j < bytesPerPixel; j++) {
-                    destData[j] = 0;
-                }
-                destData += bytesPerPixel;
-            }
-            rows = h;
-            letterboxRows = (destHeight - h) % 2;
+        scaledWidth = destWidth;
+        scaledHeight = destHeight;
+        videoRatioResize(srcWidth, srcHeight, &scaledWidth, &scaledHeight);
+        infof("RESIZE: %dx%d -> %dx%d", srcWidth, srcHeight, scaledWidth, scaledHeight);
+        rows = scaledHeight;
+        if(scaledHeight < destHeight) {
+            preY = (destHeight - scaledHeight) / 2;
+        } else {
+            preY = 0;
         }
+        if(scaledWidth < destWidth) {
+            preX = (destWidth - scaledWidth) / 2;
+        } else {
+            preX = 0;
+        }
+        k = 0;
+        for(y = 0; y < destHeight; y++) {
+            for(x = 0; x < destWidth; x++) {
+                destData[k++] = red;
+                destData[k++] = green;
+                destData[k++] = blue;
+                if(bytesPerPixel == 4) {
+                    destData[k++] = alpha;
+                }
+            }
+        }
+        destData += (preY * destWidth * bytesPerPixel) + (preX * bytesPerPixel);
+        integerPart = ((srcHeight / scaledHeight) * srcWidth) * bytesPerPixel;
+        fractionalPart = srcHeight % scaledHeight;
+    } else {
+        integerPart = ((srcHeight / destHeight) * srcWidth) * bytesPerPixel;
+        fractionalPart = srcHeight % destHeight;
     }
 
     unsigned char *PrevSource = NULL;
     while(rows-- > 0) {
         if (srcData == PrevSource) {
-            memcpy(destData, destData - (destWidth * bytesPerPixel), (destWidth * bytesPerPixel));
+            memcpy(destData, destData - (destWidth * bytesPerPixel), (scaledWidth * bytesPerPixel));
         } else {
-            _videoImageScaleLine(srcData, srcWidth, destData, destWidth, bytesPerPixel);
+            _videoImageScaleLine(srcData, srcWidth, destData, scaledWidth, bytesPerPixel);
             PrevSource = srcData;
         }
         destData += (destWidth * bytesPerPixel);
         srcData += integerPart;
         E += fractionalPart;
-        if (E >= destHeight) {
-            E -= destHeight;
+        if (E >= scaledHeight) {
+            E -= scaledHeight;
             srcData += (srcWidth * bytesPerPixel);
         }
-    }
-
-    if(letterboxRows) {
-        for(k = letterboxRows; k > 0; k--) {
-            for(j = 0; j < bytesPerPixel; j++) {
-                destData[j] = 0;
-            }
-            destData += bytesPerPixel;
-        }        
     }
 }
 
@@ -855,8 +872,10 @@ void videoScreenCapture(unsigned char *data, int width, int height) {
     _videoFlipScreenshotBuffer();
 
     if(data != NULL) {
+        flubColor4f_t color = {0.0, 0.0, 0.0, 0.0};
+
         videoImageResize(_videoCtx.screenshotBuffer, _videoCtx.width, _videoCtx.height,
-                         data, width, height, 3, 0, 0, 0, 0, 0);
+                         data, width, height, 3, 1, &color);
     }    
 }
 
@@ -866,9 +885,6 @@ void videoScreenshot(const char *fname) {
 
     name = utilGenFilename(fname, "png", 9999, buffer, sizeof(buffer));
     videoScreenCapture(NULL, 0, 0);
-    //glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    //glReadPixels(0, 0, _videoCtx.width, _videoCtx.height, GL_RGB, GL_UNSIGNED_BYTE, _videoCtx.screenshotBuffer);
-    //_videoFlipScreenshotBuffer();
     stbi_write_png(name, _videoCtx.width, _videoCtx.height, 3, _videoCtx.screenshotBuffer, 0);
     infof("Saved screenshot \"%s\".", name);
 }

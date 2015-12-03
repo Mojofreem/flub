@@ -12,6 +12,7 @@
 #	include <gl/glext.h>
 #	include <gl/glu.h>
 #endif // MACOSX
+#include <flub/util/color.h>
 
 
 #define DBG_VID_DTL_SHADERS     1
@@ -71,7 +72,7 @@ size_t videoFrameMemSize(int width, int height);
 void videoImageResize(unsigned char *srcData, int srcWidth, int srcHeight,
                       unsigned char *destData, int destWidth, int destHeight,
                       int bytesPerPixel, int forceRatio,
-                      int red, int green, int blue, int alpha);
+                      flubColor4f_t *color);
 void videoScreenCapture(unsigned char *data, int width, int height);
 void videoScreenshot(const char *fname);
 
