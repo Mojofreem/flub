@@ -33,22 +33,10 @@ void physfs_log(const char *msg) {
 
 font_t *fpsFont;
 
-void doFpsCounter(Uint32 elapsed) {
-    static int frames = 0;
-    static Uint32 last = 0;
-    static int fps = 0;
-
-    frames++;
-    last += elapsed;
-    if(last >= 1000) {
-        fps = frames;
-        frames = 0;
-        last -= 1000;
-    }
-
+void doFpsCounter(void) {
     fontPos(620, 5);
     glColor3f(0.5, 0.5, 1.0);
-    fontBlitInt(fpsFont, fps);
+    fontBlitInt(fpsFont, flubFpsGet());
 }
 
 void blitSpriteMap(flubSprite_t *sprite, int x, int y, int *dict, char **map, int layers) {
@@ -409,7 +397,7 @@ int main(int argc, char *argv[]) {
         if(scaled != NULL) {
             gfxTexBlit(scaled, 10, 10);
         }
-        doFpsCounter(elapsed);
+        doFpsCounter();
     }
 
     gfxMeshDestroy(mesh);
