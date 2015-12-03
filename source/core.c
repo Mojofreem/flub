@@ -2,15 +2,47 @@
 
 
 struct {
+	Uint32 pollTick;
 	Uint32 lastTick;
 	Uint32 elapsed;
+	Uint32 fpsTick;
+	int frames;
+	int fps;
 } _coreCtx = {
-		.lastTick = 0,
-		.elapsed = 0,
+		.pollTick = 0,
 	};
 
 
-int flubPollEvent(SDL_Event *event, Uint32 *ticks, Uint32 *elapsed, Uint32 *wait) {
+int flubPollEvent(SDL_Event *event, Uint32 *wait) {
+	Uint32 currentTick;
+	Uint32 elapsed;
+	Uint32 lastTick;
+	Uint32 timeout = 0;
+
+	if(_coreCtx.pollTick == 0) {
+		_coreCtx.pollTick = SDL_GetTicks();
+	}
+	currentTick = SDL_GetTicks();
+	if(wait == NULL) {
+		wait = &timeout;
+	}
+	elapsed = (currentTick - _coreCtx.pollTick);
+	if(elapsed > *wait) {
+		*wait = 0;
+	} else {
+		*wait -= elapsed;
+	}
+
+	if(!SDL_WaitEventTimeout(event, *wait)) {
+		*wait = 0;
+		return 0;
+	}
+
+	// TODO Pre-filter event, before passing on to caller
+	return 1;
+}
+
+Uint32 flubTicksRefresh(Uint32 *elapsed) {
 	Uint32 currentTicks;
 	Uint32 elapsedTicks;
 	int result;
@@ -27,34 +59,19 @@ int flubPollEvent(SDL_Event *event, Uint32 *ticks, Uint32 *elapsed, Uint32 *wait
 	_coreCtx.lastTick = currentTicks;
 	_coreCtx.elapsed = elapsedTicks;
 
-	if(ticks != NULL) {
-		*ticks = currentTicks;
+	_coreCtx.fpsTick += elapsedTicks;
+	if(_coreCtx.fpsTick > 1000) {
+		_coreCtx.fpsTick -= 1000;
+		_coreCtx.fps = _coreCtx.frames;
+		_coreCtx.frames = 0;
 	}
+	_coreCtx.frames++;
 
 	if(elapsed != NULL) {
 		*elapsed = elapsedTicks;
 	}
 
-	if(wait != NULL) {
-		*wait -= currentTicks;
-		if(*wait <= 0) {
-			*wait = 0;
-		} else {
-            timeout = *wait;
-        }
-	} else {
-		timeout = 0;
-	}
-
-	while(1) {
-
-		if(!SDL_WaitEventTimeout(event, timeout)) {
-			return 0;
-		}
-
-		// TODO Pre-filter event, before passing on to caller
-		return 1;
-	}
+	return currentTicks;
 }
 
 Uint32 flubTicksElapsed(void) {
@@ -65,3 +82,6 @@ Uint32 flubTicksGet(void) {
 	return _coreCtx.lastTick;
 }
 
+int flubFpsGet(void) {
+	return _coreCtx.fps;
+}

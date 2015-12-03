@@ -71,6 +71,7 @@ static struct {
     int launchedFromConsole;
     const char *progName;
     flubModuleUpdateCB_t *update;
+    int done;
 } _flubAppCtx = {
     .launchedFromConsole = 1,
 };
@@ -79,6 +80,10 @@ static struct {
 int appUpdate(uint32_t ticks, uint32_t elapsed) {
     int k;
 
+    if(_flubAppCtx.done) {
+        return 0;
+    }
+    
     for(k = 0; _flubAppCtx.update[k] != NULL; k++) {
         if(!_flubAppCtx.update[k](ticks, elapsed)) {
             return 0;
@@ -164,6 +169,10 @@ eCmdLineStatus_t appStart(void *cmdlineContext) {
     debug(DBG_CORE, DBG_LOG_DTL_APP, "Begin application...");
 
 	return eCMDLINE_OK;
+}
+
+void appQuit(void) {
+    _flubAppCtx.done = 1;
 }
 
 void appShutdown(void) {

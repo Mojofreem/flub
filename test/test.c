@@ -33,144 +33,11 @@ void physfs_log(const char *msg) {
 
 font_t *fpsFont;
 
-void doFpsCounter( void )
-{
-    static Uint32 last = 0;
-    static int frames = 0;
-    static int fps = 0;
-    Uint32 now;
-
-    if(last == 0) {
-        last = SDL_GetTicks();
-    }
-    now = SDL_GetTicks();
-
-    frames++;
-
-    if((now - last) >= 1000) {
-        fps = frames;
-        frames = 0;
-        last += 1000;
-    }
-
+void doFpsCounter(void) {
     fontPos(620, 5);
     glColor3f(0.5, 0.5, 1.0);
-    fontBlitInt(fpsFont, fps);
+    fontBlitInt(fpsFont, flubFpsGet());
 }
-
-#define DUMP_LIMIT 40
-
-void dumpImg(const unsigned char *data, int width, int height) {
-    char buf[DUMP_LIMIT + 1];
-    int x, y;
-    unsigned char c;
-
-    infof("Dumping image %dx%d", width, height);
-    for(y = 0; ((y < DUMP_LIMIT) && (y < height)); y++) {
-        for(x = 0; ((x < DUMP_LIMIT) && (x < width)); x++) {
-            c = data[(y * width) + x];
-            buf[x] = (isalnum(c) ? c : '-');
-        }
-        buf[x] = '\0';
-        infof("%.2d [%s]", y + 1, buf);
-    }
-}
-
-int BULK_EVENT_LIMIT = 15;
-
-GLuint testVBOid;
-GLuint testTexid;
-GLuint testIBOid;
-GLuint testTex;
-texture_t *footex;
-//GLint vertices[] = {30, 30, 130, 30, 130, 130, 30, 130};
-GLint vertices[] = {30, 30, 130, 30, 130, 130, 30, 30, 130, 130, 30, 130};
-GLfloat texcoords[] = {0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0};
-//GLint vertices[] = {40, 40, 0, 140, 40, 0, 140, 140, 0, 40, 40, 0, 140, 140, 0, 40, 140, 0};
-//float vertices[] = {30, 30, 0, 130, 30, 0, 130, 130, 0, 30, 130, 0};
-GLuint indices[] = {1, 2, 4, 2, 3, 4};
-
-void vboTestInit(GLuint id) {
-    testTex = id;
-    glGenBuffers(1, &testVBOid);
-    glBindBuffer(GL_ARRAY_BUFFER, testVBOid);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glGenBuffers(1, &testTexid);
-    glBindBuffer(GL_ARRAY_BUFFER, testTexid);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(texcoords), texcoords, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    /*
-    glGenBuffers(1, &testIBOid);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, testIBOid);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_DYNAMIC_DRAW);
-    */
-}
-
-void vboTestRender(void) {
-    int k;
-    glLoadIdentity();
-    glColor3f(1.0, 1.0, 1.0);
-
-    //gfxTexBlit(footex, 500, 300);
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_BLEND);
-    //glEnable(GL_CULL_FACE);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBlendFunc(GL_ONE, GL_ZERO);
-
-/*
-	glBegin( GL_TRIANGLES );
-	for(k = 0; k < 9; k += 3) {
-		glVertex3i(vertices[k], vertices[k+ 1] + 120, vertices[k+ 2]);
-	}
-	glEnd();
-
-	glBegin( GL_TRIANGLES );
-	for(k = 9; k < 18; k += 3) {
-		glVertex3i(vertices[k], vertices[k+ 1] + 120, vertices[k+ 2]);
-	}
-	glEnd();
-*/
-
-/*
-	glBegin( GL_QUADS );
-		glVertex2i(140, 30);
-		glVertex2i(240, 30);
-		glVertex2i(240, 130);
-		glVertex2i(140, 130);
-	glEnd();
-*/
-
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glBindBuffer(GL_ARRAY_BUFFER, testVBOid);
-    glVertexPointer(2, GL_INT, 0, (void*)(0));
-
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    glBindBuffer(GL_ARRAY_BUFFER, testTexid);
-    glTexCoordPointer(2, GL_FLOAT, 0, (void*)(0));
-
-
-    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, testIBOid);
-    //glDrawElements(GL_TRIANGLES, 2, GL_UNSIGNED_INT, NULL);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    glDisableClientState(GL_VERTEX_ARRAY);
-
-    glFlush();
-
-    gfxTexBlit(footex, 500, 150);
-}
-
-int foolio_1(void);
-int foolio_2(void);
 
 void blitSpriteMap(flubSprite_t *sprite, int x, int y, int *dict, char **map, int layers) {
     int layer;
@@ -222,32 +89,6 @@ void blitMeshSpriteMap(gfxMeshObj_t *mesh, flubSprite_t *sprite, int x, int y, i
     }
 }
 
-#if 0
-gfxMeshObj_t *effectMesh;
-int effectStart;
-int effectStop;
-
-void fadeinCompleted(gfxEffect_t *oldEffect, void *context);
-
-
-void fadeoutCompleted(gfxEffect_t *oldEffect, void *context) {
-    gfxEffect_t *effect;
-
-    effect = gfxEffectFade(effectMesh, effectStart, effectStop, 0.0, 1.0, 2000);
-    effect->completed = fadeinCompleted;
-    gfxEffectRegister(effect);
-}
-
-void fadeinCompleted(gfxEffect_t *oldEffect, void *context) {
-    gfxEffect_t *effect;
-
-    effect = gfxEffectFade(effectMesh, effectStart, effectStop, 1.0, 0.0, 500);
-    effect->completed = fadeoutCompleted;
-    gfxEffectRegister(effect);
-}
-#endif
-
-
 texture_t *snapAndRescale(int w, int h) {
     int size;
     texture_t *tex;
@@ -264,18 +105,17 @@ extern void (*log_message)(const char *msg);
 int main(int argc, char *argv[]) {
     eCmdLineStatus_t status;
     int keepGoing = 1;
-    Uint32 lastTick;
     Uint32 current;
     Uint32 elapsed;
-    Uint32 counter = 0;
-    //GLuint img, fid;
+    Uint32 wait;
+    SDL_Event ev;
+
     int iw, ih, fw, fh;
     texture_t *dlg;
     texture_t *misc;
     flubSlice_t *slice;
-    //flubSlice_t *sliceTest;
+
     font_t *fnt;
-    int eventCount;
     int pos;
     int w;
     gfxMeshObj_t *mesh;
@@ -334,26 +174,10 @@ int main(int argc, char *argv[]) {
 
     // Register command line params and config vars
 
-#if 0
-    infof("### Adding font ###################################");
-    if(!flubFontLoad("flub/font/times.12.stbfont")) {
-        errorf("Unable to load times font.");
-    }
-    if(!flubFontLoad("flub/font/courier.12.stbfont")) {
-        errorf("Unable to load courier font.");
-    }
-#endif
-
     status = appStart(NULL);
     if(status != eCMDLINE_OK) {
         return ((status == eCMDLINE_EXIT_SUCCESS) ? 0 : 1);
     }
-
-    //infof("Working dir: [%s]", getcwd(cwdbuf, sizeof(cwdbuf)));
-
-
-    //enumDir("");
-    //enumDir("assets");
 
     fnt = fontGet("consolas", 12, 0);
     if(fnt == NULL) {
@@ -361,21 +185,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     fpsFont = fnt;
-    //fid = fontGetGLImage(fnt, &fw, &fh);
-    //fid = fontGetGLTexture(fnt);
-
-    //info("Font loaded, targeting images.");
-
-    //infof("Working dir: [%s]", getcwd(cwdbuf, sizeof(cwdbuf)));
 
     misc = texmgrGet("flub-keycap-misc");
     dlg = texmgrLoad( "work/dungeondlg2.gif", "dungeondlg2", GL_NEAREST, GL_NEAREST, 1, 255, 0, 255);
-    //img = texmgrQuickLoad( "assets/misc/test_img.gif", GL_NEAREST, GL_NEAREST, 0, 0, 0, 0, &iw, &ih);
-    footex = dlg;
 
     slice = gfxSliceCreate(dlg, GFX_SLICE_NOTILE_ALL, 0, 0, 18, 22, 74, 69, 126, 106);
-    //sliceTest = gfxSliceCreate(dlg, 145, 6, 150, 11, 182, 27, 186, 31);
-    //infof("Texture id for flubmisc1 is %d", misc->id);
 
     rawSlices = texmgrGet("flub-slice-test");
     if(rawSlices == NULL) {
@@ -387,21 +201,12 @@ int main(int argc, char *argv[]) {
     info("== Expbar =========");
     expBar = gfx1x3SliceCreate(rawSlices, GFX_SLICE_NOTILE_ALL, 44, 106, 60, 128, 137, 152);
     info("== Done expbar ====");
-    //vboTestInit(misc->id);
     dlg_tile = gfxSliceCreate(rawSlices, GFX_SLICE_NOTILE_LEFT|GFX_SLICE_NOTILE_TOP|GFX_SLICE_NOTILE_RIGHT|GFX_SLICE_NOTILE_BOTTOM, 145, 36, 150, 41, 182, 57, 186, 61);
 
     sound = audioSoundGet("resources/sounds/menumove.wav");
 
     mesh = gfxMeshCreate(MESH_QUAD_SIZE(40), GL_TRIANGLES, 1, misc);
-    //infof("The mesh is 0x%p", mesh);
     gfxTexMeshBlit(mesh, misc, 20, 20);
-    //gfxMeshBlit(mesh, 220, 20);
-    //gfxMeshBlit(mesh, 420, 20);
-    //gfxMeshBlit(mesh, 20, 220);
-    //gfxMeshBlit(mesh, 220, 220);
-    //gfxMeshBlit(mesh, 420, 220);
-
-    //infof("Vertices: %d", mesh->pos);
 
     fontMesh = gfxMeshCreate(MESH_QUAD_SIZE(256), GL_TRIANGLES, 1, NULL);
     gfxMeshTextureAssign(fontMesh, fontTextureGet(fnt));
@@ -466,80 +271,25 @@ int main(int argc, char *argv[]) {
     gfxKeycapMeshBlit(meshChain, fnt, "Ctrl", 240, 260, NULL, NULL);
     gfxKeycapMeshBlit(meshChain, fnt, "PgDn", 280, 260, NULL, NULL);
 
-#if 0
-    effectMesh = meshDlg;
-    effectStart = meshDlg->pos;
-    gfxSliceMeshBlit2(meshDlg, slice, 10, 50, 150, 190);
-    effectStop = meshDlg->pos;
-
-    effect = gfxEffectFade(effectMesh, effectStart, effectStop, 0.0, 1.0, 2000);
-    effect->completed = fadeinCompleted;
-    gfxEffectRegister(effect);
-#endif
-
-    /*
-    if((!flubFontLoad("pirulen.30.stbfont")) ||
-       ((pfont = fontGet("pirulen", 30, 0)) == NULL)) {
-        fatal("Unable to load pirulen font");
-        return 0;
-    }
-    */
 
     inputActionBind("KEY_BACKQUOTE", "showconsole");
-    //glBlendFunc(GL_ONE, GL_ZERO);
-    //glDisable(GL_BLEND);
-    //glEnable(GL_TEXTURE_2D);
 
     info("### Loading theme ###############");
     flubGuiThemeLoad("assets/data/flub-basic.theme");
     info("### Done loading theme ##########");
 
-    int a, b;
+    current = flubTicksRefresh(&elapsed);
+    while(appUpdate(current, elapsed)) {
+        current = flubTicksRefresh(&elapsed);
 
-    a = 640;
-    b = 480;
-    videoScreenRatioResize(&a, &b);
-
-    a = 320;
-    b = 480;
-    videoScreenRatioResize(&a, &b);
-
-    a = 500;
-    b = 246;
-    videoScreenRatioResize(&a, &b);
-
-    a = 720;
-    b = 480;
-    videoScreenRatioResize(&a, &b);
-
-    int cw[] = {4, 10, 10, 5, 30};
-    consoleTabularDivider(1, 5, cw);
-
-    char *ct[6] = {"1234", "foolio", "foobar", "XC-M-", "This is a really nifty test, yo, yo, yo, donkey man jones"};
-    consoleTabularPrint(1, 5, cw, ct);
-
-    lastTick = SDL_GetTicks();
-    while (keepGoing) {
-        current = SDL_GetTicks();
-        elapsed = current - lastTick;
-        lastTick = current;
-        counter += elapsed;
-        if(counter >= 2500) {
-            if(sound != NULL) {
-                //Mix_PlayChannel(0, sound, 0);
-            }
-            counter -= 2500;
-        }
         // Process every event
-        SDL_Event ev;
         // wait no more than 15ms to avoid exceeding 67 fps
         //while (SDL_WaitEventTimeout(&ev, 15)) {
-        eventCount = 0;
+        wait = 15;
         while(inputPollEvent(&ev)) {
-            eventCount++;
             switch (ev.type) {
                 case SDL_QUIT:
-                    keepGoing = 0;
+                    appQuit();
                     break;
                 case SDL_TEXTINPUT:
                     break;
@@ -570,7 +320,7 @@ int main(int argc, char *argv[]) {
                         case SDLK_f:
                             break;
                         case SDLK_ESCAPE:
-                            keepGoing = 0;
+                            appQuit();
                             break;
                         case SDLK_BACKQUOTE:
                             break;
@@ -617,15 +367,6 @@ int main(int argc, char *argv[]) {
                         case SDLK_ESCAPE:
                             keepGoing = 0;
                             break;
-                        case SDLK_BACKQUOTE:
-                            /*
-                            if(consoleVisible()) {
-                                consoleShow(0);
-                            } else {
-                                consoleShow(1);
-                            }
-                            */
-                            break;
                     }
                     break;
                 case SDL_CONTROLLERBUTTONDOWN:
@@ -635,65 +376,12 @@ int main(int argc, char *argv[]) {
                 case SDL_CONTROLLERAXISMOTION:
                     break;
             }
-            if(eventCount >= BULK_EVENT_LIMIT) {
-                break;
-            }
         }
         videoClear();
-
-        //glDisable(GL_DEPTH_TEST);
-        //glDisable(GL_CULL_FACE);
-        //glDisable(GL_BLEND);
-
         videoPushGLState();
         videoOrthoMode();
-
         glLoadIdentity();
         glColor3f(1.0, 1.0, 1.0);
-        //glEnable(GL_BLEND);
-        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        //fontSetColor(1.0, 1.0, 1.0);
-        //gfxBlitKeyStr(fnt, "Use [META_UP] and [META_DOWN] to select a menu option.", 10, 440, NULL, NULL);
-        //gfxBlitKeyStr(fnt, "Use [~] to open the console.", 10, 460, NULL, NULL);
-
-
-        glLoadIdentity();
-
-        //gfxTexTile(tex_dlg, 150, 11, 180, 25, 200, 260, 298, 400);
-        //gfxTexBlit(tex_misc, 200, 5);
-        //gfxTexBlitSub(tex_misc, 0, 0, 127, 127, 0, 5, 127, 132);
-
-        //gfxMeshRender(fontMesh);
-
-        //gfxSliceBlit(dlg_title, 200, 300, 320, 315);
-        //gfxSliceBlit(dlg_body, 200, 316, 320, 440);
-        //gfxSliceBlit(slice, 10, 50, 150, 190);
-
-
-        glLoadIdentity();
-
-        //fontMode();
-        //fontPos(10, 200);
-        //fontBlitStr(pfont, "This Is A Test! Werd, yo!");
-        //glLoadIdentity();
-        //gfxTexBlit(fontTextureGet(pfont), 10, 200);
-
-        //videoPushGLState();
-        //videoOrthoMode();
-
-        //vboTestRender();
-
-        //gfxGLBlit(img, 380, 10, 380 + iw, 10 + ih);
-
-
-        //fontSetColor(0.5, 1.0, 0.5);
-        //fontSetColor(1.0, 1.0, 1.0);
-        //gfxGLBlit(fid, 5, 5, fw, fh);
-
-        //gfxTexBlit(misc, 25, 120);
-        //gfxGLBlit(misc->id, 5, 100, 5 + misc->width, 100 + misc->height);
-
 
         gfxMeshRender(meshChain);
 
@@ -702,18 +390,14 @@ int main(int argc, char *argv[]) {
         gfxSliceBlit(dlg_tile, 100, 150, 300, 280);
         gfxSliceBlit(slice, 400, 200, 410, 280);
         gfxSliceBlit(slice, 50, 300, 320, 450);
-        //gfxSliceBlit(healthBar, 10, *videoHeight - healthBar->height - 10, 300, *videoHeight - 10);
-        //gfxSliceBlit(expBar, 10, *videoWidth - expBar->width - 10, *videoHeight - 10, *videoWidth - 10);
-        //gfxSliceBlit(expBar, 10, 10, 50, 200);
-        //videoPopGLState();
+        gfxSliceBlit(healthBar, 10, *videoHeight - healthBar->height - 10, 300, *videoHeight - 10);
+        gfxSliceBlit(expBar, 10, *videoWidth - expBar->width - 10, *videoHeight - 10, *videoWidth - 10);
+        gfxSliceBlit(expBar, 10, 10, 50, 200);
 
         if(scaled != NULL) {
             gfxTexBlit(scaled, 10, 10);
         }
-
-        if(!appUpdate(current, elapsed)) {
-            keepGoing = 0;
-        }
+        doFpsCounter();
     }
 
     gfxMeshDestroy(mesh);
