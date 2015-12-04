@@ -3,6 +3,49 @@ Flub
 --------------------------------------------
 alpha
 ============================================
+cleanup
+    color
+    enum
+    file
+    jsmn
+    mime
+    misc
+    parse
+    string
+    anim
+    app
+    audio
+    cmdline
+    config
+    console
+    core
+    flub
+    font
+    gfx
+    gui
+    input
+    input_events
+    layout
+    license
+    logger
+    memory
+    module
+    parser
+    physfsrwops
+    physfsutil
+    sdl
+    simpleedit
+    stbfont
+    texture
+    theme
+    thread
+    video
+    widget
+
+tools
+    ttf -> stbfont converter
+    ttf stripper
+
 resource handler
     load resources from common text file format
     console binding for resource loading
@@ -76,11 +119,15 @@ console command editor
 
 console table output formatter
 
+save game support functions
+    create/retrieve dir
+    store summary
+    load summary
+    save game list
+
 filter input to produce processed text
         (shift and ctrl mapping)
         [currently ad-hoc'd in console]
-
-letterbox screen capture
 
 zlib compress/expand texture images
 
@@ -104,6 +151,13 @@ use z layer to provide layering effects in 2D plane with fewer meshes
 
 drawing primitives
     font blit to raw buffer
+
+gfx primitives
+    rect
+    filled rect
+    ellipse
+    filled ellipse
+    lines
 
 clean up existing API modules
     logical seperation
